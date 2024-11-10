@@ -73,13 +73,17 @@ contract FactoryContract is Suapp {
      * stores the address of a newly created AuctionContract in deployedContracts
      * emits AuctionContractCreated Event
      */
-    function createAuctionContractOffchain() public returns (bytes memory) {
+    function createAuctionContractOffchain()
+        public
+        onlyOwner
+        returns (bytes memory)
+    {
         AuctionContract newContract = new AuctionContract();
-        /*         Suave.confidentialStore(
+        Suave.confidentialStore(
             signingKeyRecord,
             AUCTION_CONTRACTS,
             abi.encode(address(newContract))
-        ); */
+        );
         emit AuctionContractCreated(address(newContract), msg.sender);
         return
             abi.encodeWithSelector(
@@ -88,16 +92,24 @@ contract FactoryContract is Suapp {
             );
     }
 
+    event ContractAddressEvent(address mes);
+
     /*
      * returns the list of deployed auction contracts
-     * TODO: unfinished/untested
+     * TODO: unfinished/untested; Currently only capable of storing one contract
      */
     function getDeployedContracts()
         public
         onlyOwner
-        returns (address[] memory)
+        confidential
+        returns (bytes memory)
     {
-        return deployedContracts;
+        bytes memory auctionList = Suave.confidentialRetrieve(
+            signingKeyRecord,
+            AUCTION_CONTRACTS
+        );
+        emit ContractAddressEvent(abi.decode(auctionList, (address)));
+        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     //offchain
@@ -113,9 +125,15 @@ contract FactoryContract is Suapp {
             deployedContracts.length > 0,
             "No deployed contracts available"
         );
-        emit HelperEvent3(deployedContracts[0]);
         IContract ic = IContract(deployedContracts[0]);
         ic.test();
+    }
+
+    //TODO: remove
+    function testOtherContract(address ad) external returns (bytes memory) {
+        IContract ic = IContract(ad);
+        ic.test();
+        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     /*
