@@ -113,7 +113,7 @@ contract FactoryContract is Suapp {
             deployedContracts.length > 0,
             "No deployed contracts available"
         );
-        emit HelperEvent3(deployedContracts[0]);
+        // emit HelperEvent3(deployedContracts[0]);
         IContract ic = IContract(deployedContracts[0]);
         ic.test();
     }

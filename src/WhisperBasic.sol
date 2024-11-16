@@ -14,104 +14,83 @@ interface ERC20 {
     function balanceOf(address) external view returns (uint256);
 }
 
+// TODO go sdk for input to prevent encoding issues
 contract WhisperBasic is Suapp {
+    address developer;
+
+    // restrict sensitive functionality to the deployer of the smart contract
+    modifier isDeveloper() {
+        require(msg.sender == developer);
+        _;
+    }
+
+    constructor () {
+        developer = msg.sender;
+    }
+
     event OffchainStatusEvent(uint256 code, string text);
     function onchainCallback() public emitOffchainLogs {}
 
     // KEY RELATED FUNCTIONALITY -------------------------------------------------------------------------------------------------------------------------------------
-    event PrintPrivateKeyEvent(string private_key);
+    event PrintSigningKeyEvent(string signing_key);
+    event KeyUpdatedEvent(address addr);
 
-    Suave.DataId signingKeyRecord; // id (= key) of current private key record
-    string public PRIVATE_KEY = "KEY"; // TODO functionality of PRIVATE_KEY variable?? bad naming??
+    string public SIGNING_KEY = "KEY"; // TODO functionality of SIGNING_KEY variable??
+    mapping (address => Suave.DataId) signingKeys; // mapping for confidentially stored private keys of addresses
+    mapping (address => bool) signingKeyAvailable;
 
-    function printPrivateKey() public returns (bytes memory) {
-        emit PrintPrivateKeyEvent(
-            string(Suave.confidentialRetrieve(signingKeyRecord, PRIVATE_KEY))
-        );
+    modifier signingKeyStored(address owner) {
+        require(signingKeyAvailable[owner], "No signing key stored for this address.");
+        _;
+    }
+
+    function printSigningKey(address owner) public isDeveloper() signingKeyStored(owner) returns (bytes memory) {
+        emit PrintSigningKeyEvent(string(Suave.confidentialRetrieve(signingKeys[owner], SIGNING_KEY)));
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
-    function updateKeyOnchain(Suave.DataId _signingKeyRecord) public {
-        signingKeyRecord = _signingKeyRecord;
+    function updateSigningKeyOnchain(address owner, Suave.DataId signingKeyRecord) public { // TODO update visibility such that only callable via offchain calls
+        signingKeys[owner] = signingKeyRecord;
+        signingKeyAvailable[owner] = true;
+        emit KeyUpdatedEvent(owner);
     }
 
-    function registerPrivateKeyOffchain() public returns (bytes memory) {
-        bytes memory keyData = Context.confidentialInputs(); // bytes in KeyData are decrypted during processing
+    function registerSigningKeyOffchain() public returns (bytes memory) {
+        bytes memory keyData = Context.confidentialInputs(); // bytes in KeyData are retrieved decrypted
         address[] memory peekers = new address[](1);
         peekers[0] = address(this);
 
-        Suave.DataRecord memory record = Suave.newDataRecord(
-            0,
-            peekers,
-            peekers,
-            "private_key"
-        ); // kind of metadata for access control
-        Suave.confidentialStore(record.id, PRIVATE_KEY, keyData); // actual storing decrypted by TEE's private key: <key: record.id, value: keyData> in "db" TODO: role of PRIVATE_KEY variable???
+        
+        Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "SIGNING_KEY"); // metadata for access control
+        Suave.confidentialStore(record.id, SIGNING_KEY, keyData); // actual storing decrypted by TEE's private key: <key: record.id, value: keyData> in "db"
 
-        return
-            abi.encodeWithSelector(this.updateKeyOnchain.selector, record.id);
+        return abi.encodeWithSelector(this.updateSigningKeyOnchain.selector, msg.sender, record.id);
     }
 
-    event PrivPubKey(uint256 priv, address pub);
+    function createKeyPairOffchain() internal returns (bytes memory) {
+        string memory priv_key = Suave.privateKeyGen(Suave.CryptoSignature.SECP256);
+        bytes memory keyData = bytes(priv_key);
+        address addr = Secp256k1.deriveAddress(priv_key);
 
-    function createPrivateKeyOffchain() public returns (bytes memory) {
-        uint256 priv_key = Random.randomUint256();
-        address pub_key = Secp256k1.deriveAddress(priv_key);
-        emit PrivPubKey(priv_key, pub_key); // TODO: emitting the private key is not the best idea
-        return abi.encodeWithSelector(this.onchainCallback.selector);
+        address[] memory peekers = new address[](1);
+        peekers[0] = address(this);
+
+        Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "SIGNING_KEY");
+        Suave.confidentialStore(record.id, SIGNING_KEY, keyData);
+
+        return abi.encodeWithSelector(this.updateSigningKeyOnchain.selector, addr, record.id);
     }
 
     // TRANSACTION RELATED FUNCTIONALITY -----------------------------------------------------------------------------------------------------------------------------
     event TxnSignature(bytes32 r, bytes32 s);
     event TxnRetrievalEvent(Transactions.EIP155 txn);
 
-    // untested
-    function retrieveTransaction() public returns (bytes memory) {
-        bytes memory rlpEncodedTxn = Context.confidentialInputs();
-        Transactions.EIP155 memory txn = Transactions.decodeRLP_EIP155(
-            rlpEncodedTxn
-        );
-
-        emit TxnRetrievalEvent(txn);
-
-        return abi.encodeWithSelector(this.onchainCallback.selector);
-    }
-
-    // untested
-    function makeTransaction(
-        address toAddress,
-        uint256 value,
-        bytes memory payload,
-        uint256 chainId
-    ) public returns (bytes memory) {
-        bytes memory signingKey = Suave.confidentialRetrieve(
-            signingKeyRecord,
-            PRIVATE_KEY
-        );
-
-        Transactions.EIP155Request memory txnWithToAddress = Transactions
-            .EIP155Request({
-                to: toAddress,
-                gas: 1000000,
-                gasPrice: 500,
-                value: value,
-                nonce: 1,
-                data: payload,
-                chainId: chainId
-            });
-
-        Transactions.EIP155 memory txn = Transactions.signTxn(
-            txnWithToAddress,
-            string(signingKey)
-        );
-        emit TxnSignature(txn.r, txn.s);
-        bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
-
+    function createHttpRequestForEndpoint(string memory endpointURL, bytes memory rlpEncodedTxn, uint256 chainId) internal view rpcStored(chainId) returns (Suave.HttpRequest memory) {
         string[] memory headers = new string[](1);
         headers[0] = "Content-Type: application/json";
 
-        Suave.HttpRequest memory request = Suave.HttpRequest({
-            url: string(Suave.confidentialRetrieve(rpcRecord, RPC)),
+        return Suave.HttpRequest({
+            url: endpointURL,
             method: "POST",
             headers: headers,
             body: abi.encodePacked(
@@ -124,84 +103,171 @@ contract WhisperBasic is Suapp {
             withFlashbotsSignature: false,
             timeout: 7000
         });
+    }
 
+    // used to relay user singed transaction to the actual chain, if it suffies validation criteria
+    function relayTransaction() public returns (bytes memory) {
+        bytes memory rlpEncodedTxn = Context.confidentialInputs();
+        Transactions.EIP155 memory txn = Transactions.decodeRLP_EIP155(rlpEncodedTxn);
+
+        // TODO what should be validated here? what do we bookkeep in the smart contract and what do we read from ethereum?
+        // TODO how to prevent double spending => nonce 3 singed to suave => gets relayed ==> user sends directly to eth another valid tx  with nonce 3 before suapp relayed
+        require(txn.chainId == 11155111, "Blockchain not (yet) supported.");
+        require(txn.value >= 1, "Value too low.");
+
+        string memory rpcEndpoint = bytesToString(Suave.confidentialRetrieve(rpcRecords[txn.chainId], RPC));
+        Suave.HttpRequest memory request = createHttpRequestForEndpoint(rpcEndpoint, rlpEncodedTxn, txn.chainId);
         bytes memory response = Suave.doHTTPRequest(request);
-        emit HttpAnswer(string(response));
+        emit HttpResponse(string(response));
+
+        return abi.encodeWithSelector(this.onchainCallback.selector);
+    }
+
+    // used to issue new transactions in order to move funds after the auction has ended (nft-transfer, pay the auctioneer, losing bid returns)
+    function makeTransaction(address fromAddress, address toAddress, uint256 value, bytes memory payload, uint256 chainId) signingKeyStored(fromAddress) internal returns (bytes memory) {
+        bytes memory signingKey = Suave.confidentialRetrieve(signingKeys[fromAddress], SIGNING_KEY);
+
+        // TODO can we assume that each address is only used for one outgoing tx? => nonce hardcoded to 1?
+        uint256 nonce = getNonce(fromAddress, chainId);
+
+        Transactions.EIP155Request memory txnWithToAddress = Transactions
+            .EIP155Request({
+                to: toAddress,
+                gas: 1000000,           // TODO how to determine reasonable values for gas & gasPrice?
+                gasPrice: 500,
+                value: value,
+                nonce: nonce,
+                data: payload,
+                chainId: chainId
+            });
+
+        Transactions.EIP155 memory txn = Transactions.signTxn(txnWithToAddress, string(signingKey));
+        emit TxnSignature(txn.r, txn.s); // just for debugging purposes, TODO delete
+        bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
+
+        string memory rpcEndpoint = bytesToString(Suave.confidentialRetrieve(rpcRecords[chainId], RPC));
+        Suave.HttpRequest memory request = createHttpRequestForEndpoint(rpcEndpoint, rlpEncodedTxn, chainId);
+        bytes memory response = Suave.doHTTPRequest(request);
+        emit HttpResponse(string(response));
 
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     // FETCHING RELATED FUNCTIONALITY --------------------------------------------------------------------------------------------------------------------------------
-    event HttpAnswer(string answer);
-    event RPCEndpoint(string rpcEndpoint);
+    event HttpResponse(string response);
+    event RPCEndpoint(uint256 chainId, string endpointURL);
+    event RPCEndpointUpdated(uint256 chainId);
     event Balance(address owner, uint256 value);
-    event NonceCounter(address owener, uint256 value);
+    event ERC20Balance(address coinAddr, address owner, uint256 value);
+    event NonceCounter(address owner, uint256 value);
 
-    Suave.DataId rpcRecord;
     string public RPC = "RPC";
+    mapping (uint256 => Suave.DataId) rpcRecords;
+    mapping (uint256 => bool) rpcAvailable;
 
-    function updateRPCOnchain(Suave.DataId _rpcRecord) public {
-        rpcRecord = _rpcRecord;
+    modifier rpcStored(uint256 chainId) {
+        require(rpcAvailable[chainId], "No RPC-Endpoint available for this chain-ID.");
+        _;
     }
 
-    function printRPCEndpoint() public returns (bytes memory) {
-        emit RPCEndpoint(
-            bytesToString(Suave.confidentialRetrieve(rpcRecord, RPC))
-        );
+    function updateRPCOnchain(uint256 chainId, Suave.DataId _rpcRecord) public {
+        rpcRecords[chainId] = _rpcRecord;
+        rpcAvailable[chainId] = true;
+        emit RPCEndpointUpdated(chainId);
+    }
+
+    function printRPCEndpoint(uint256 chainId) public rpcStored(chainId) returns (bytes memory) {
+        emit RPCEndpoint(chainId, bytesToString(Suave.confidentialRetrieve(rpcRecords[chainId], RPC)));
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
-    function registerRPCOffchain() public returns (bytes memory) {
+    function registerRPCOffchain(uint256 chainId) public returns (bytes memory) {
         bytes memory rpcData = Context.confidentialInputs(); // use https://rpc.toliman.suave.flashbots.net // see https://suave-alpha.flashbots.net/toliman
         address[] memory peekers = new address[](1);
         peekers[0] = address(this);
 
-        Suave.DataRecord memory record = Suave.newDataRecord(
-            0,
-            peekers,
-            peekers,
-            "rpc_endpoint"
-        );
+        Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "rpc_endpoint" );
         Suave.confidentialStore(record.id, RPC, rpcData);
 
-        return
-            abi.encodeWithSelector(this.updateRPCOnchain.selector, record.id);
+        return abi.encodeWithSelector(this.updateRPCOnchain.selector, chainId, record.id);
     }
 
-    // tested
-    function getNonce(address account) external returns (bytes memory) {
-        bytes memory rpcData = Suave.confidentialRetrieve(rpcRecord, RPC);
-        string memory endpoint = bytesToString(rpcData);
+    function registerRPCOffchain(uint256 chainId, string memory endpointURL) public returns (bytes memory) {
+        address[] memory peekers = new address[](1);
+        peekers[0] = address(this);
 
-        EthJsonRPC jsonrpc = new EthJsonRPC(endpoint);
-        uint256 nonce = jsonrpc.nonce(account);
+        Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "rpc_endpoint" );
+        Suave.confidentialStore(record.id, RPC, bytes(endpointURL));
 
+        return abi.encodeWithSelector(this.updateRPCOnchain.selector, chainId, record.id);
+    }
+
+    // print/get NONCE
+    function printNonce(address account) public returns (bytes memory) {
+        return printNonce(account, 11155111);
+    }
+
+    function printNonce(address account, uint256 chainId) public rpcStored(chainId) returns (bytes memory) {
+        uint256 nonce = getNonce(account, chainId);
         emit NonceCounter(account, nonce);
-
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
-    // tested
-    function getERC20Balance(
-        address contractAddr,
-        address account
-    ) external returns (bytes memory) {
-        bytes memory rpcData = Suave.confidentialRetrieve(rpcRecord, RPC);
-        string memory endpoint = bytesToString(rpcData);
+    function getNonce(address account) internal returns (uint256) {
+        return getNonce(account, 11155111);
+    }
 
-        Gateway gateway = new Gateway(endpoint, contractAddr);
-        ERC20 token = ERC20(address(gateway));
-        uint256 balance = token.balanceOf(account);
+    function getNonce(address account, uint256 chainId) internal rpcStored(chainId) returns (uint256) {
+        string memory endpoint = bytesToString(Suave.confidentialRetrieve(rpcRecords[chainId], RPC));
+        EthJsonRPC jsonrpc = new EthJsonRPC(endpoint);
+        return jsonrpc.nonce(account);
+    }
 
+    // print/get Balance
+    function printBalance(address account) public returns (bytes memory) {
+        return printBalance(account, 11155111);
+    }
+
+    function printBalance(address account, uint256 chainId) public rpcStored(chainId) returns (bytes memory) {
+        uint256 balance = getBalance(account, chainId);
         emit Balance(account, balance);
-
         return abi.encodeWithSelector(this.onchainCallback.selector);
+    }
+
+    function getBalance(address account) internal returns (uint256) {
+        return getBalance(account, 11155111);
+    }
+
+    function getBalance(address account, uint256 chainId) internal rpcStored(chainId) returns (uint256) {
+        string memory endpoint = bytesToString(Suave.confidentialRetrieve(rpcRecords[chainId], RPC));
+        EthJsonRPC jsonrpc = new EthJsonRPC(endpoint);
+        return jsonrpc.balance(account);
+    }
+
+    // print/get ERC20Balance
+    function printERC20Balance(address coinAddr, address account) public returns (bytes memory) {
+        return printERC20Balance(coinAddr, account, 11155111);
+    }
+
+    function printERC20Balance(address coinAddr, address account, uint256 chainId) public rpcStored(chainId) returns (bytes memory) {
+        uint256 balance = getERC20Balance(coinAddr, account, chainId);
+        emit ERC20Balance(coinAddr, account, balance);
+        return abi.encodeWithSelector(this.onchainCallback.selector);
+    }
+
+    function getERC20Balance(address coinAddr, address account) internal returns (uint256) {
+        return getERC20Balance(coinAddr, account, 11155111);
+    }
+
+    function getERC20Balance(address coinAddr, address account, uint256 chainId) internal rpcStored(chainId) returns (uint256) {
+        string memory endpoint = bytesToString(Suave.confidentialRetrieve(rpcRecords[chainId], RPC));
+        Gateway gateway = new Gateway(endpoint, coinAddr);
+        ERC20 token = ERC20(address(gateway));
+        return token.balanceOf(account);
     }
 
     // HELPER FUNCTIONALITY ------------------------------------------------------------------------------------------------------------------------------------------
-    function bytesToString(
-        bytes memory data
-    ) internal pure returns (string memory) {
+    function bytesToString(bytes memory data) internal pure returns (string memory) {
         uint256 length = data.length;
         bytes memory chars = new bytes(length);
 
@@ -212,9 +278,7 @@ contract WhisperBasic is Suapp {
         return string(chars);
     }
 
-    function toHexString(
-        bytes memory data
-    ) internal pure returns (string memory) {
+    function toHexString(bytes memory data) internal pure returns (string memory) {
         bytes memory hexAlphabet = "0123456789abcdef";
         bytes memory str = new bytes(2 + data.length * 2);
         str[0] = "0";
