@@ -1,39 +1,19 @@
-# <h1 align="center"> Forge Template </h1>
+# <h1 align="center"> Whisper-Wins Backend </h1>
+## Setup
+Make sure to have the latest version of ```suave-geth``` installed properly and can run it locally. You can find help on how to get there [here](https://suave-alpha.flashbots.net/tutorials/run-suave).
+To compile the contracts you need to run ```forge build```. To be able to do that you might need to install [Foundry](https://getfoundry.sh). See the [book](https://book.getfoundry.sh/getting-started/installation.html) for instructions on how to install and use Foundry.
 
-**Template repository for getting started quickly with Foundry projects**
+## Genereally startup procedure:
+1. start your local suave chain: ```suave-geth --suave.dev --suave.eth.external-whitelist='*'```
+2. compile the contracts: ```forge build```
+3. deploy the necessary contracts: ```suave-geth spell deploy File.sol:Contract```
+4. call functions of the deployed contracts: ```suave-geth spell conf-request [--confidential-input <input-data>] <contract-address> '<function-name(<argument-type-list>)>' '(<argument-list>)'```
 
-![Github Actions](https://github.com/foundry-rs/forge-template/workflows/CI/badge.svg)
-
-## Getting Started
-
-Click "Use this template" on [GitHub](https://github.com/foundry-rs/forge-template) to create a new repository with this repo as the initial state.
-
-Or, if your repo already exists, run:
-```sh
-forge init
-forge build
-forge test
-```
-
-## Writing your first test
-
-All you need is to `import forge-std/Test.sol` and then inherit it from your test contract. Forge-std's Test contract comes with a pre-instatiated [cheatcodes environment](https://book.getfoundry.sh/cheatcodes/), the `vm`. It also has support for [ds-test](https://book.getfoundry.sh/reference/ds-test.html)-style logs and assertions. Finally, it supports Hardhat's [console.log](https://github.com/brockelmore/forge-std/blob/master/src/console.sol). The logging functionalities require `-vvvv`.
-
-```solidity
-pragma solidity 0.8.10;
-
-import "forge-std/Test.sol";
-
-contract ContractTest is Test {
-    function testExample() public {
-        vm.roll(100);
-        console.log(1);
-        emit log("hi");
-        assertTrue(true);
-    }
-}
-```
-
-## Development
-
-This project uses [Foundry](https://getfoundry.sh). See the [book](https://book.getfoundry.sh/getting-started/installation.html) for instructions on how to install and use Foundry.
+## Get WhisperBasic running:
+1. start your local suave chain: ```suave-geth --suave.dev --suave.eth.external-whitelist='*'```
+2. compile the contracts: ```forge build```
+3. deploy the necessary contracts: ```suave-geth spell deploy WhisperBasic.sol:WhisperBasic``` (Note: scan the generated opout for the address of the deployed contract)
+4. set up the rpc endpoints for the both Sepolia and Toliman: 
+- ```suave-geth spell conf-request <contract-address> 'registerRPCOffchain(uint256,string)' '(33626250, https://rpc.toliman.suave.flashbots.net)'```
+- ```suave-geth spell conf-request --confidential-input https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086 <contract-address> 'registerRPCOffchain(uint256)' '(11155111)'```
+5. now you should be able to execute all of its functionality 👍
