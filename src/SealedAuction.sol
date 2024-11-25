@@ -315,7 +315,7 @@ contract SealedAuction is Suapp {
         return abi.encodeWithSelector(this.updateRPCOnchain.selector, chainId, record.id);
     }
 
-    function registerRPCOffchain(uint256 chainId, string memory endpointURL) public returns (bytes memory) {
+/*     function registerRPCOffchain(uint256 chainId, string memory endpointURL) public returns (bytes memory) {
         address[] memory peekers = new address[](1);
         peekers[0] = address(this);
 
@@ -323,7 +323,7 @@ contract SealedAuction is Suapp {
         Suave.confidentialStore(record.id, RPC, bytes(endpointURL));
 
         return abi.encodeWithSelector(this.updateRPCOnchain.selector, chainId, record.id);
-    }
+    } */
 
     function getNftTransfer(string memory txHash, uint256 chainId) internal {
         bytes memory response = getTxByHash(txHash, chainId);
