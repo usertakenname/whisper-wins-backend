@@ -37,20 +37,20 @@ contract SealedAuction is Suapp {
     }
 
     // TODO how to pass constructor args to suave spell deploy?
-    //constructor(uint256 auctionTimeInDays, string memory nftTransferHash, uint256  chainId) {
-    //    auctioneerSUAVE = msg.sender;
-    //    auctionEndTime = block.timestamp + (auctionTimeInDays * 24 * 60 * 60);
-    //
-    //    // set default rpc for sepolia
-    //    address[] memory peekers = new address[](1);
-    //    peekers[0] = address(this);
-    //    Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "rpc_endpoint");
-    //    Suave.confidentialStore(record.id, RPC, bytes("https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086"));
-    //    rpcRecords[chainId] = record.id;
-    //    rpcAvailable[chainId] = true;
-    //
-    //    getNftTransfer(nftTransferHash, chainId);
-    //}
+    constructor(uint256 auctionTimeInDays, string memory nftTransferHash, uint256  chainId) {
+        auctioneerSUAVE = msg.sender;
+        auctionEndTime = block.timestamp + (auctionTimeInDays * 24 * 60 * 60);
+    
+        // set default rpc for sepolia
+        address[] memory peekers = new address[](1);
+        peekers[0] = address(this);
+        Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "rpc_endpoint");
+        Suave.confidentialStore(record.id, RPC, bytes("https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086"));
+        rpcRecords[chainId] = record.id;
+        rpcAvailable[chainId] = true;
+    
+        getNftTransfer(nftTransferHash, chainId);
+    }
 
     // restrict sensitive functionality to the deployer of the smart contract
     modifier onlyAuctioneer() {
@@ -125,7 +125,7 @@ contract SealedAuction is Suapp {
 
     // TODO replace with proper (AES) encryption precompile
     function encryptByAddress(address suaveAddress, address biddingAddress) internal pure returns (bytes memory) {
-        return bytes("420!");
+        return bytes(bidderAddresses);
     }
 
     // TODO DELETE; only for debugging
@@ -141,6 +141,7 @@ contract SealedAuction is Suapp {
         require(txn.to == publicL1Address, "Unknown to address");
         require(rpcAvailable[txn.chainId], "Blockchain not (yet) supported.");
         require(txn.value >= 1000000000, "Value too low.");
+        // TODO maybe field for min bid by auctioneer (optional) then check that the bid is above that value
 
         relayTransaction(rlpEncodedTxn);
 
@@ -253,6 +254,7 @@ contract SealedAuction is Suapp {
         address fromAddress = Secp256k1.deriveAddress(bytesToString(privateL1Key));
 
         uint256 nonce = getNonce(fromAddress, chainId);
+        // we can keep track
 
         Transactions.EIP155Request memory txnWithToAddress = Transactions
             .EIP155Request({
