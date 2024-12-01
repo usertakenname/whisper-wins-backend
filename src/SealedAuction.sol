@@ -7,49 +7,39 @@ import "suave-std/Transactions.sol";
 import "suave-std/suavelib/Suave.sol";
 import "suave-std/Gateway.sol";
 import "suave-std/protocols/EthJsonRPC.sol";
-import "suave-std/Random.sol";
 import "suave-std/crypto/Secp256k1.sol";
+import "solady/src/utils/JSONParserLib.sol";
 
 interface ERC20 {
     function balanceOf(address) external view returns (uint256);
 }
 
 contract SealedAuction is Suapp {
-    event AuctionOpened(address contractAddr, uint256 endTimestamp, uint256 bidderAmount);
-
-    uint256 auctionEndTime;
-    address auctioneerSUAVE;
     address auctioneerL1;
+    address auctioneerSUAVE;
+    address nftHoldingAddress = address(0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D);
+    address nftContract;
     uint256 tokenId;
-
-    // TODO delete and use parametarized constructor
-    constructor() {
-        auctioneerSUAVE = msg.sender;
-        auctionEndTime = block.timestamp + (4 * 60);
-        auctioneerL1 = address(0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D);
-        tokenId = 420;
-    }
+    uint256 auctionTimeSpan;
+    uint256 auctionEndTime;
+    uint256 minimalBid;
+    bool auctionHasStarted = false;
 
     // TODO delete - debugging only
+    event AuctionInfo(address auctioneerL1, address auctioneerSUAVE, address nftHoldingAddress, address nftContract, uint256 tokenId, uint256 auctionTimeSpan,
+                    uint256 auctionEndTime, uint256 minimalBid, bool auctionHasStarted);
     function printInfo() public returns (bytes memory) {
-        emit AuctionOpened(address(this), auctionEndTime, bidderAmount);
+        emit AuctionInfo(auctioneerL1, auctioneerSUAVE, nftHoldingAddress, nftContract, tokenId, auctionTimeSpan, auctionEndTime, minimalBid, auctionHasStarted);
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
-    // TODO how to pass constructor args to suave spell deploy?
-    constructor(uint256 auctionTimeInDays, string memory nftTransferHash, uint256  chainId) {
+    constructor(address beneficiaryAddress, address nftContractAddress, uint256 nftTokenId, uint256 auctionTimeInDays, uint256 minimalBiddingAmount) {
         auctioneerSUAVE = msg.sender;
-        auctionEndTime = block.timestamp + (auctionTimeInDays * 24 * 60 * 60);
-    
-        // set default rpc for sepolia
-        address[] memory peekers = new address[](1);
-        peekers[0] = address(this);
-        Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "rpc_endpoint");
-        Suave.confidentialStore(record.id, RPC, bytes("https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086"));
-        rpcRecords[chainId] = record.id;
-        rpcAvailable[chainId] = true;
-    
-        getNftTransfer(nftTransferHash, chainId);
+        auctioneerL1 = beneficiaryAddress;
+        nftContract = nftContractAddress;
+        tokenId = nftTokenId;
+        auctionTimeSpan = auctionTimeInDays * 24 * 60 * 60;
+        minimalBid = minimalBiddingAmount;
     }
 
     // restrict sensitive functionality to the deployer of the smart contract
@@ -58,25 +48,59 @@ contract SealedAuction is Suapp {
         _;
     }
 
+    // modifiers to restrict auction-state sensitive functionality 
+    modifier auctionStarted() {
+        require(auctionHasStarted, "Auction not yet started");
+        _;
+    }
+
+    modifier auctionNotStarted() {
+        require(!auctionHasStarted, "Auction has already started");
+        _;
+    }
+
     modifier inAuctionTime() {
+        require(auctionHasStarted, "Auction not yet started");
         require(block.timestamp <= auctionEndTime, "Auction time is over");
         _;
     }
 
     modifier afterAuctionTime() {
+        require(auctionHasStarted, "Auction not yet started");
         require(block.timestamp > auctionEndTime, "Auction time not over yet");
         _;
+    }
+
+    // simple callback to publish offchain events
+    function onchainCallback() public emitOffchainLogs {}
+
+    // START AUCTION RELATED FUNCTIONALITY ---------------------------------------------------------------------------------------------------------------------------
+    event AuctionOpened(address contractAddr, address nftContractAddress, uint256 nftTokenId, uint256 endTimestamp, uint256 minimalBiddingAmount);
+
+    function startAuctionCallback() public emitOffchainLogs {
+        auctionHasStarted = true;
+        auctionEndTime = block.timestamp + auctionTimeSpan;
+        emit AuctionOpened(address(this), nftContract, tokenId, auctionEndTime, minimalBid);
+    }
+    
+    function startAuction() public onlyAuctioneer()  auctionNotStarted()  returns (bytes memory) {
+        address ownerAddress = getNFTOwnedBy(nftContract, tokenId, 11155111);
+        require(ownerAddress == nftHoldingAddress, "Transfer the NFT before starting the auction.");
+
+        return abi.encodeWithSelector(this.startAuctionCallback.selector);
     }
 
     // BIDDING RELATED FUNCTIONALITY ---------------------------------------------------------------------------------------------------------------------------------
     event RevealBiddingAddress(address bidder);
     event WinnerAddress(address winner, uint256 amount);
-    event BiddingAddress(address owner, string encodedL1Address);
-    function onchainCallback() public emitOffchainLogs {}
+    event EncBiddingAddress(address owner, string encryptedL1Address);
 
     string public PRIVATE_KEYS = "KEY";
-    // mapping of public SUAVE addresses to private keys of their bidding address on L1
+    string public RETURN_ADDRESS = "ADDR";
+
+    // mapping of public SUAVE addresses to 1. private keys of their bidding address on L1 and 2. the L1 return address for their bids
     mapping (address => Suave.DataId) privateKeysL1;
+    mapping (address => Suave.DataId) bidReturnAddressesL1;
     mapping (address => bool) _addressHasBid;
     // keep track of the bidders
     uint256 bidderAmount = 0;
@@ -92,13 +116,14 @@ contract SealedAuction is Suapp {
         _;
     }
     
-    // TODO how to make sure it is only called by the getBiddingAddress
-    function updatePrivateKeyOnchain(address owner, Suave.DataId keyRecord) public emitOffchainLogs {
+    // TODO how to make sure callbacks are only called by the responding offchain functions
+    function updatePrivateKeyCallback(address owner, Suave.DataId keyRecord) public emitOffchainLogs {
         privateKeysL1[owner] = keyRecord;
         _addressHasBid[owner] = true;
         bidderAddresses[bidderAmount++] = owner;
     }
 
+    // emits the bidding address in a encrypted fashion, creates a new one if user has no bidding address so far
     function getBiddingAddress() public returns (bytes memory) {
         if (_addressHasBid[msg.sender] == false) {
             require(block.timestamp <= auctionEndTime, "Auction is already over, cannot create new bidding addresses.");
@@ -107,54 +132,68 @@ contract SealedAuction is Suapp {
 
             address[] memory peekers = new address[](1);
             peekers[0] = address(this);
-            Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "PRIVATE_KEYS");
+            Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, PRIVATE_KEYS);
             Suave.confidentialStore(record.id, PRIVATE_KEYS, keyData);
 
             address publicL1Address = Secp256k1.deriveAddress(privateKey);
-            emit BiddingAddress(msg.sender, bytesToString(encryptByAddress(msg.sender, publicL1Address)));
+            emit EncBiddingAddress(msg.sender, bytesToString(encryptForAddress(msg.sender, publicL1Address)));
 
-            return abi.encodeWithSelector(this.updatePrivateKeyOnchain.selector, msg.sender, record.id);                        
+            return abi.encodeWithSelector(this.updatePrivateKeyCallback.selector, msg.sender, record.id);                        
         } else {
             bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[msg.sender], PRIVATE_KEYS);
             address publicL1Address = Secp256k1.deriveAddress(bytesToString(privateL1Key));
-            emit BiddingAddress(msg.sender, bytesToString(encryptByAddress(msg.sender, publicL1Address)));
+            emit EncBiddingAddress(msg.sender, bytesToString(encryptForAddress(msg.sender, publicL1Address)));
 
             return abi.encodeWithSelector(this.onchainCallback.selector);
         }
     }
 
     // TODO replace with proper (AES) encryption precompile
-    function encryptByAddress(address suaveAddress, address biddingAddress) internal pure returns (bytes memory) {
-        return bytes(bidderAddresses);
+    function encryptForAddress(address suaveAddress, address biddingAddress) internal pure returns (bytes memory) {
+        return abi.encodePacked(biddingAddress);
     }
 
     // TODO DELETE; only for debugging
     event TxnSignature(bytes32 r, bytes32 s);
 
+    function placeBidCallback(address owner, Suave.DataId returnAddress) public {
+        bidReturnAddressesL1[owner] = returnAddress;
+    }
+
+    // Note: To ensure your funds are returned, you must place at least one bid through the auction contract's placeBid() method.
+    //       Otherwise, the return address remains undetermined for the contract and your funds may be stuck.
+    //       Regardless of how many individual bids were made, the last bid issued by a suave address determines its L1 return address.
     function placeBid() public inAuctionTime() addressHasBid(msg.sender) confidential() returns (bytes memory) {
         bytes memory rlpEncodedTxn = Context.confidentialInputs();
         Transactions.EIP155 memory txn = Transactions.decodeRLP_EIP155(rlpEncodedTxn);
 
-        // TODO what should be validated here?
+        // validate the bid transaction
         bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[msg.sender], PRIVATE_KEYS);
         address publicL1Address = Secp256k1.deriveAddress(bytesToString(privateL1Key));
-        require(txn.to == publicL1Address, "Unknown to address");
+        require(txn.to == publicL1Address, "Unknown to address.");
         require(rpcAvailable[txn.chainId], "Blockchain not (yet) supported.");
-        require(txn.value >= 1000000000, "Value too low.");
-        // TODO maybe field for min bid by auctioneer (optional) then check that the bid is above that value
+        require(txn.value >= minimalBid, "Value less than minimal bid.");
 
         relayTransaction(rlpEncodedTxn);
 
-        return abi.encodeWithSelector(this.onchainCallback.selector);
+        // update the address to which the bids are returned to
+        address[] memory peekers = new address[](1);
+        peekers[0] = address(this);
+        Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, RETURN_ADDRESS);
+        Suave.confidentialStore(record.id, RETURN_ADDRESS, abi.encode(txn.to)); // TODO question: how to get the from/issuer address of the txn?
+
+        return abi.encodeWithSelector(this.placeBidCallback.selector, record.id);
     }
 
+    // allows the bidder to back out before the auction has ended
     function reclaimBid() public inAuctionTime() addressHasBid(msg.sender) returns (bytes memory) {
-        // TODO transfer placed bids back
+        address returnAddress = address(bytes20(Suave.confidentialRetrieve(bidReturnAddressesL1[msg.sender], RETURN_ADDRESS)));
         bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[msg.sender], PRIVATE_KEYS);
         address publicAddress = Secp256k1.deriveAddress(bytesToString(privateL1Key));
         uint256 value = getBalance(publicAddress);
-        if (value >= 100000) {
-            makeTransaction(msg.sender, address(0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D), value - 100000, "Thanks for bidding", 11155111);
+        uint gasPrice = getGasPrice() * 2;
+        if (value >= 21000 * gasPrice) {
+            makeTransaction(msg.sender, returnAddress, gasPrice, value - (21000 * gasPrice), "", 11155111);
         } else {
             emit FundsTooLessToPayout(msg.sender);
         }
@@ -162,6 +201,7 @@ contract SealedAuction is Suapp {
     }
 
     // END-AUCTION RELATED FUNCTIONALITY -----------------------------------------------------------------------------------------------------------------------------
+    event NoBidder();
     event AuctionEndedAmbigious(uint256 numberMaxBidders, uint256 bidAmount);
     event FundsTooLessToPayout(address addr);
 
@@ -175,23 +215,31 @@ contract SealedAuction is Suapp {
     }
 
     function endAuction() public afterAuctionTime() returns (bytes memory) {
-        uint256 numberMaxBidders = 1;
+        uint256 numberMaxBidders = bidderAmount;
         uint256 maxBid = 0;
         address winner = auctioneerSUAVE;
+        uint256 validBids = 0;
         for (uint256 i = 0; i < bidderAmount; i++) {
             bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[bidderAddresses[i]], PRIVATE_KEYS);
             address publicL1Address = Secp256k1.deriveAddress(bytesToString(privateL1Key));
             uint256 placedBid = getBalance(publicL1Address);
-            if (placedBid == maxBid) {
-                numberMaxBidders++;
-            }
-            if (placedBid > maxBid) {
-                numberMaxBidders = 1;
-                maxBid = placedBid;
-                winner = publicL1Address;
+            if (placedBid >= minimalBid) {
+                validBids++;
+                if (placedBid == maxBid) {
+                    numberMaxBidders++;
+                }
+                if (placedBid > maxBid) {
+                    numberMaxBidders = 1;
+                    maxBid = placedBid;
+                    winner = publicL1Address;
+                }
             }
         }
-        if (numberMaxBidders > 1) {
+        // TODO implement refunding functions
+        if (validBids == 0) {
+            emit NoBidder();
+            refundNFT();
+        } else if (numberMaxBidders > 1) {
             emit AuctionEndedAmbigious(numberMaxBidders, maxBid);
             refundAllBids();
             refundNFT();
@@ -212,28 +260,31 @@ contract SealedAuction is Suapp {
         // TODO transfer funds in winner address to auctioneerL1
     }
 
-    function refundBid(uint256 index) internal {
-        // TODO transfer all balance to from address of ingoing tx, value = balance - gas
-        bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[bidderAddresses[index]], PRIVATE_KEYS);
+    function refundBid(uint256 index, uint256 gasPrice) internal {
+        address suaveAddress = bidderAddresses[index];
+        address returnAddress = address(bytes20(Suave.confidentialRetrieve(bidReturnAddressesL1[suaveAddress], RETURN_ADDRESS)));
+        bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[suaveAddress], PRIVATE_KEYS);
         address publicAddress = Secp256k1.deriveAddress(bytesToString(privateL1Key));
         uint256 value = getBalance(publicAddress);
-        if (value >= 100000) {
-            makeTransaction(bidderAddresses[index], address(0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D), value - 100000, "Thanks for bidding", 11155111);
+        if (value >= 21000 * gasPrice) {
+            makeTransaction(suaveAddress, returnAddress, gasPrice, value - (21000 * gasPrice), "", 11155111);
         } else {
-            emit FundsTooLessToPayout(bidderAddresses[index]);
+            emit FundsTooLessToPayout(suaveAddress);
         }
     }
 
     function refundAllBids() internal {
+        uint gasPrice = getGasPrice() * 2;
         for (uint256 i = 0; i < bidderAmount; i++) {
-            refundBid(i);
+            refundBid(i, gasPrice);
         }
     }
 
     function refundAllBidsExcept(address winner) internal {
+        uint gasPrice = getGasPrice() * 2;
         for (uint256 i = 0; i < bidderAmount; i++) {
             if (bidderAddresses[i] != winner) {
-                refundBid(i);
+                refundBid(i, gasPrice);
             }
         }
     }
@@ -243,24 +294,23 @@ contract SealedAuction is Suapp {
     function relayTransaction(bytes memory rlpEncodedTxn) public {
         Transactions.EIP155 memory txn = Transactions.decodeRLP_EIP155(rlpEncodedTxn);
 
+        require(rpcAvailable[txn.chainId], "No RPC-Endpoint available for this chain-ID.");
         string memory rpcEndpoint = bytesToString(Suave.confidentialRetrieve(rpcRecords[txn.chainId], RPC));
         Suave.HttpRequest memory request = createRawTxHttpRequest(rpcEndpoint, rlpEncodedTxn, txn.chainId);
-        bytes memory response = Suave.doHTTPRequest(request);
+        Suave.doHTTPRequest(request);
     }
 
     // used to issue new transactions in order to move funds after the auction has ended (pay the auctioneer, losing bid returns)
-    function makeTransaction(address suaveAddress, address toAddress, uint256 value, bytes memory payload, uint256 chainId) internal afterAuctionTime() rpcStored(chainId) addressHasBid(suaveAddress) returns (bytes memory) {
+    function makeTransaction(address suaveAddress, address toAddress, uint256 gasPrice, uint256 value, bytes memory payload, uint256 chainId) internal afterAuctionTime() rpcStored(chainId) addressHasBid(suaveAddress) returns (bytes memory) {
         bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[suaveAddress], PRIVATE_KEYS);
         address fromAddress = Secp256k1.deriveAddress(bytesToString(privateL1Key));
-
         uint256 nonce = getNonce(fromAddress, chainId);
-        // we can keep track
 
         Transactions.EIP155Request memory txnWithToAddress = Transactions
             .EIP155Request({
                 to: toAddress,
-                gas: 1000000,           // TODO how to determine reasonable values for gas & gasPrice?
-                gasPrice: 500,
+                gas: 21000,
+                gasPrice: gasPrice,
                 value: value,
                 nonce: nonce,
                 data: payload,
@@ -273,19 +323,20 @@ contract SealedAuction is Suapp {
 
         string memory rpcEndpoint = bytesToString(Suave.confidentialRetrieve(rpcRecords[chainId], RPC));
         Suave.HttpRequest memory request = createRawTxHttpRequest(rpcEndpoint, rlpEncodedTxn, chainId);
-        bytes memory response = Suave.doHTTPRequest(request);
+        Suave.doHTTPRequest(request);
 
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     // FETCHING RELATED FUNCTIONALITY --------------------------------------------------------------------------------------------------------------------------------
     event HttpResponse(string response);
-    event RPCEndpoint(uint256 chainId, string endpointURL);
+    event RPCEndpoint(uint256 chainId, string endpointURL); // TODO debug only, delete
     event RPCEndpointUpdated(uint256 chainId);
     event Balance(address owner, uint256 value);
     event ERC20Balance(address coinAddr, address owner, uint256 value);
     event NonceCounter(address owner, uint256 value);
 
+    // store base url for rpc endpoints per chainId
     string public RPC = "RPC";
     mapping (uint256 => Suave.DataId) rpcRecords;
     mapping (uint256 => bool) rpcAvailable;
@@ -295,7 +346,7 @@ contract SealedAuction is Suapp {
         _;
     }
 
-    function updateRPCOnchain(uint256 chainId, Suave.DataId _rpcRecord) public {
+    function updateRPCCallback(uint256 chainId, Suave.DataId _rpcRecord) public {
         rpcRecords[chainId] = _rpcRecord;
         rpcAvailable[chainId] = true;
         emit RPCEndpointUpdated(chainId);
@@ -314,24 +365,35 @@ contract SealedAuction is Suapp {
         Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "rpc_endpoint");
         Suave.confidentialStore(record.id, RPC, rpcData);
 
-        return abi.encodeWithSelector(this.updateRPCOnchain.selector, chainId, record.id);
+        return abi.encodeWithSelector(this.updateRPCCallback.selector, chainId, record.id);
     }
 
-/*     function registerRPCOffchain(uint256 chainId, string memory endpointURL) public returns (bytes memory) {
+    function registerRPCOffchain(uint256 chainId, string memory endpointURL) public returns (bytes memory) {
         address[] memory peekers = new address[](1);
         peekers[0] = address(this);
 
         Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "rpc_endpoint");
         Suave.confidentialStore(record.id, RPC, bytes(endpointURL));
 
-        return abi.encodeWithSelector(this.updateRPCOnchain.selector, chainId, record.id);
-    } */
+        return abi.encodeWithSelector(this.updateRPCCallback.selector, chainId, record.id);
+    }
 
-    function getNftTransfer(string memory txHash, uint256 chainId) internal {
-        bytes memory response = getTxByHash(txHash, chainId);
-        emit HttpResponse(bytesToString(response)); // TODO parse the answer to get the from address and required nft information (if any) and set it accorfingly
-        auctioneerL1 = address(0);
-        tokenId = 0;
+    function getNFTOwnedBy(address _nftContract, uint256 _tokenId, uint256 _chainId) public rpcStored(_chainId) returns (address) {
+        string[] memory headers = new string[](1);
+        headers[0] = "Content-Type: application/json";
+
+        string memory baseURL = bytesToString(Suave.confidentialRetrieve(rpcRecords[_chainId], RPC));
+        string memory path = string.concat("/getOwnersForToken?contractAddress=", toHexString(abi.encodePacked(_nftContract)), "&tokenId=", string(abi.encodePacked(_tokenId)));
+
+        bytes memory response = Suave.doHTTPRequest(Suave.HttpRequest({
+            url: string.concat(baseURL, path),
+            method: "GET",
+            headers: headers,
+            body: '',
+            withFlashbotsSignature: false,
+            timeout: 7000
+        })); 
+        return address(uint160(JSONParserLib.parseUintFromHex(JSONParserLib.value(JSONParserLib.at(getJSONField(response, "owners"), 0))))); 
     }
 
     function getTxByHash(string memory txHash, uint256 chainId) public rpcStored(chainId) returns (bytes memory) {
@@ -374,6 +436,36 @@ contract SealedAuction is Suapp {
             timeout: 7000
         });
     }
+
+    // get Gas-Price
+    function getGasPrice() internal returns (uint256) {
+        return getGasPrice(11155111);
+    }
+
+    function getGasPrice(uint256 chainId) internal rpcStored(chainId) returns (uint256) {
+        string memory endpoint = bytesToString(Suave.confidentialRetrieve(rpcRecords[chainId], RPC));
+        
+        string[] memory headers = new string[](1);
+        headers[0] = "Content-Type: application/json";
+
+        bytes memory response = Suave.doHTTPRequest(Suave.HttpRequest({
+            url: endpoint,
+            method: "POST",
+            headers: headers,
+            body: abi.encodePacked(
+                '{"jsonrpc":"2.0", "method": "eth_gasPrice", "params": [], "id": ',
+                chainId,
+                "}"
+            ),
+            withFlashbotsSignature: false,
+            timeout: 7000
+        }));
+
+        // Hex-number answer in json["result"], eg: {"jsonrpc":"2.0","id":11155111,"result":"0x2138251e3"}
+        uint256 gasPrice = JSONParserLib.parseUintFromHex(stripQuotes(JSONParserLib.value(getJSONField(response, "result"))));
+        return gasPrice;
+    }
+
 
     // print/get NONCE
     function printNonce(address account) public returns (bytes memory) {
@@ -461,5 +553,35 @@ contract SealedAuction is Suapp {
             str[3 + i * 2] = hexAlphabet[uint256(uint8(data[i] & 0x0f))];
         }
         return string(str);
+    }
+
+    function getJSONField(bytes memory json, string memory key) internal pure returns (JSONParserLib.Item memory) {
+        JSONParserLib.Item memory item = JSONParserLib.parse(string(json));
+        JSONParserLib.Item memory err = JSONParserLib.at(item, '"error"');
+        if (!JSONParserLib.isUndefined(err)) {
+            revert(JSONParserLib.value(err));
+        }
+        return JSONParserLib.at(item, string.concat('"', key, '"'));
+    }
+
+
+    function stripQuotes(string memory input) internal pure returns (string memory) {
+        bytes memory inputBytes = bytes(input);
+        bytes memory result = new bytes(inputBytes.length - 2);
+
+        for (uint256 i = 1; i < inputBytes.length - 1; i++) {
+            result[i - 1] = inputBytes[i];
+        }
+
+        return string(result);
+    }
+
+    function stripQuotesAndPrefix(string memory s) internal pure returns (string memory) {
+        bytes memory strBytes = bytes(s);
+        bytes memory result = new bytes(strBytes.length - 4);
+        for (uint256 i = 3; i < strBytes.length - 1; i++) {
+            result[i - 3] = strBytes[i];
+        }
+        return string(result);
     }
 }
