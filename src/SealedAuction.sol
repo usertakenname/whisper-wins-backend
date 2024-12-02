@@ -23,12 +23,12 @@ contract SealedAuction is Suapp {
     uint256 tokenId;
 
     // TODO delete and use parametarized constructor
-    constructor() {
+     constructor() {
         auctioneerSUAVE = msg.sender;
         auctionEndTime = block.timestamp + (4 * 60);
         auctioneerL1 = address(0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D);
         tokenId = 420;
-    }
+    } 
 
     // TODO delete - debugging only
     function printInfo() public returns (bytes memory) {
@@ -37,20 +37,20 @@ contract SealedAuction is Suapp {
     }
 
     // TODO how to pass constructor args to suave spell deploy?
-    //constructor(uint256 auctionTimeInDays, string memory nftTransferHash, uint256  chainId) {
-    //    auctioneerSUAVE = msg.sender;
-    //    auctionEndTime = block.timestamp + (auctionTimeInDays * 24 * 60 * 60);
-    //
-    //    // set default rpc for sepolia
-    //    address[] memory peekers = new address[](1);
-    //    peekers[0] = address(this);
-    //    Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "rpc_endpoint");
-    //    Suave.confidentialStore(record.id, RPC, bytes("https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086"));
-    //    rpcRecords[chainId] = record.id;
-    //    rpcAvailable[chainId] = true;
-    //
-    //    getNftTransfer(nftTransferHash, chainId);
-    //}
+   /*  constructor(uint256 auctionTimeInDays, string memory nftTransferHash, uint256  chainId) {
+        auctioneerSUAVE = msg.sender;
+        auctionEndTime = block.timestamp + (auctionTimeInDays * 24 * 60 * 60);
+    
+        // set default rpc for sepolia
+        address[] memory peekers = new address[](1);
+        peekers[0] = address(this);
+        Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "rpc_endpoint");
+        Suave.confidentialStore(record.id, RPC, bytes("https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086"));
+        rpcRecords[chainId] = record.id;
+        rpcAvailable[chainId] = true;
+    
+        getNftTransfer(nftTransferHash, chainId);
+    } */
 
     // restrict sensitive functionality to the deployer of the smart contract
     modifier onlyAuctioneer() {
@@ -72,6 +72,7 @@ contract SealedAuction is Suapp {
     event RevealBiddingAddress(address bidder);
     event WinnerAddress(address winner, uint256 amount);
     event BiddingAddress(address owner, string encodedL1Address);
+    event BidPlacedEvent(address bidder, uint256 value);
     function onchainCallback() public emitOffchainLogs {}
 
     string public PRIVATE_KEYS = "KEY";
@@ -111,13 +112,13 @@ contract SealedAuction is Suapp {
             Suave.confidentialStore(record.id, PRIVATE_KEYS, keyData);
 
             address publicL1Address = Secp256k1.deriveAddress(privateKey);
-            emit BiddingAddress(msg.sender, bytesToString(encryptByAddress(msg.sender, publicL1Address)));
+            emit BiddingAddress(msg.sender, toHexString(encryptByAddress(msg.sender, publicL1Address)));
 
             return abi.encodeWithSelector(this.updatePrivateKeyOnchain.selector, msg.sender, record.id);                        
         } else {
             bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[msg.sender], PRIVATE_KEYS);
             address publicL1Address = Secp256k1.deriveAddress(bytesToString(privateL1Key));
-            emit BiddingAddress(msg.sender, bytesToString(encryptByAddress(msg.sender, publicL1Address)));
+            emit BiddingAddress(msg.sender, toHexString(encryptByAddress(msg.sender, publicL1Address)));
 
             return abi.encodeWithSelector(this.onchainCallback.selector);
         }
@@ -125,7 +126,7 @@ contract SealedAuction is Suapp {
 
     // TODO replace with proper (AES) encryption precompile
     function encryptByAddress(address suaveAddress, address biddingAddress) internal pure returns (bytes memory) {
-        return bytes("420!");
+        return abi.encodePacked(biddingAddress);
     }
 
     // TODO DELETE; only for debugging
@@ -139,11 +140,10 @@ contract SealedAuction is Suapp {
         bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[msg.sender], PRIVATE_KEYS);
         address publicL1Address = Secp256k1.deriveAddress(bytesToString(privateL1Key));
         require(txn.to == publicL1Address, "Unknown to address");
-        require(rpcAvailable[txn.chainId], "Blockchain not (yet) supported.");
+      //  require(rpcAvailable[txn.chainId], "Blockchain not (yet) supported.");
         require(txn.value >= 1000000000, "Value too low.");
-
-        relayTransaction(rlpEncodedTxn);
-
+      //  relayTransaction(rlpEncodedTxn);
+        emit BidPlacedEvent(txn.to, txn.value);
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
@@ -164,7 +164,8 @@ contract SealedAuction is Suapp {
     event AuctionEndedAmbigious(uint256 numberMaxBidders, uint256 bidAmount);
     event FundsTooLessToPayout(address addr);
 
-    function revealBidders() public afterAuctionTime() returns (bytes memory) {
+  //  function revealBidders() public afterAuctionTime() returns (bytes memory) {
+   function revealBidders() public  returns (bytes memory) {
         for (uint256 i = 0; i < bidderAmount; i++) {
             bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[bidderAddresses[i]], PRIVATE_KEYS);
             address publicL1Address = Secp256k1.deriveAddress(bytesToString(privateL1Key));
