@@ -174,14 +174,15 @@ contract SealedAuction is Suapp {
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
-    function endAuction() public afterAuctionTime() returns (bytes memory) {
+    function endAuction() public  returns (bytes memory) {
         uint256 numberMaxBidders = 1;
         uint256 maxBid = 0;
         address winner = auctioneerSUAVE;
         for (uint256 i = 0; i < bidderAmount; i++) {
             bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[bidderAddresses[i]], PRIVATE_KEYS);
             address publicL1Address = Secp256k1.deriveAddress(bytesToString(privateL1Key));
-            uint256 placedBid = getBalance(publicL1Address);
+            uint256 chainId = 1234321;
+            uint256 placedBid = getBalance(publicL1Address, chainId);
             if (placedBid == maxBid) {
                 numberMaxBidders++;
             }
@@ -193,12 +194,12 @@ contract SealedAuction is Suapp {
         }
         if (numberMaxBidders > 1) {
             emit AuctionEndedAmbigious(numberMaxBidders, maxBid);
-            refundAllBids();
-            refundNFT();
+/*             refundAllBids();
+            refundNFT(); */
         } else {
             emit WinnerAddress(winner, maxBid);
-            refundAllBidsExcept(winner);
-            transferNFT(winner);
+/*             refundAllBidsExcept(winner);
+            transferNFT(winner); */
         }
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
@@ -407,7 +408,7 @@ contract SealedAuction is Suapp {
     }
 
     function getBalance(address account) internal returns (uint256) {
-        return getBalance(account, 11155111);
+        return getBalance(account, 1234321);
     }
 
     function getBalance(address account, uint256 chainId) internal rpcStored(chainId) returns (uint256) {

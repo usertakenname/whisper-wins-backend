@@ -3,3 +3,4 @@ out/
 bin/
 go.sum
 go.mod
+myDatadir/geth
