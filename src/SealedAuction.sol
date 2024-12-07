@@ -84,8 +84,9 @@ contract SealedAuction is Suapp {
     }
     
     function startAuction() public onlyAuctioneer()  auctionNotStarted()  returns (bytes memory) {
-        address ownerAddress = getNFTOwnedBy(nftContract, tokenId, 11155111);
-        require(ownerAddress == nftHoldingAddress, "Transfer the NFT before starting the auction.");
+        //TODO uncomment when NFT transfer functionality is completed
+/*         address ownerAddress = getNFTOwnedBy(nftContract, tokenId, 11155111);
+        require(ownerAddress == nftHoldingAddress, "Transfer the NFT before starting the auction."); */
 
         return abi.encodeWithSelector(this.startAuctionCallback.selector);
     }

@@ -255,6 +255,17 @@ func printRPCEndpoint(contract *framework.Contract) {
 	fmt.Println("Check contract conf store RPC Endpoint endpoint URL:", event["endpointURL"])
 }
 
+func startAuction(contract *framework.Contract) {
+	receipt := contract.SendConfidentialRequest("startAuction", nil, nil)
+	event, err := contract.Abi.Events["AuctionOpened"].ParseLog(receipt.Logs[0])
+	checkError(err)
+	fmt.Println("Contract Address:", event["contractAddr"])
+	fmt.Println("NFT Contract Address:", event["nftContractAddress"])
+	fmt.Println("NFT Token ID:", event["nftTokenId"])
+	fmt.Println("End Timestamp:", event["endTimestamp"])
+	fmt.Println("Minimal Bidding Amount:", event["minimalBiddingAmount"])
+}
+
 func endAuction(contract *framework.Contract) {
 	/* 	balance, err := client.BalanceAt(context.Background(), fr.KettleAddress, nil)
 	   	if err != nil {
@@ -348,6 +359,8 @@ func main() {
 	fmt.Println("4. Print L1 Chain Info")
 	printL1ChainInfoComplete()
 
+	fmt.Println("4.5. Start Auction")
+	startAuction(contract)
 	fmt.Println("5. Create new account & bid")
 	// adapt sdk.go to solve the running out of gas
 	num_accounts := 2 // adapt accounts to be created here (must be <5 as 5 bidders makes endAuction() run out of gas)
