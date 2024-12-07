@@ -17,18 +17,18 @@ interface ERC20 {
 contract SealedAuction is Suapp {
     event AuctionOpened(address contractAddr, uint256 endTimestamp, uint256 bidderAmount);
 
-    uint256 auctionEndTime;
-    address auctioneerSUAVE;
-    address auctioneerL1;
-    uint256 tokenId;
+    uint256 public auctionEndTime;
+    address public auctioneerSUAVE;
+    address public auctioneerL1;
+    uint256 public tokenId;
 
     // TODO delete and use parametarized constructor
-     constructor() {
+/*      constructor() {
         auctioneerSUAVE = msg.sender;
         auctionEndTime = block.timestamp + (4 * 60);
         auctioneerL1 = address(0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D);
         tokenId = 420;
-    } 
+    }  */
 
     // TODO delete - debugging only
     function printInfo() public returns (bytes memory) {
@@ -37,20 +37,20 @@ contract SealedAuction is Suapp {
     }
 
     // TODO how to pass constructor args to suave spell deploy?
-   /*  constructor(uint256 auctionTimeInDays, string memory nftTransferHash, uint256  chainId) {
+     constructor(uint256 auctionTimeInDays, string memory nftTransferHash, uint256  chainId) {
         auctioneerSUAVE = msg.sender;
         auctionEndTime = block.timestamp + (auctionTimeInDays * 24 * 60 * 60);
     
         // set default rpc for sepolia
-        address[] memory peekers = new address[](1);
+ /*       address[] memory peekers = new address[](1);
         peekers[0] = address(this);
         Suave.DataRecord memory record = Suave.newDataRecord(0, peekers, peekers, "rpc_endpoint");
         Suave.confidentialStore(record.id, RPC, bytes("https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086"));
-        rpcRecords[chainId] = record.id;
+        rpcRecords[chainId] = record.id;*/
         rpcAvailable[chainId] = true;
     
-        getNftTransfer(nftTransferHash, chainId);
-    } */
+        //getNftTransfer(nftTransferHash, chainId); 
+    } 
 
     // restrict sensitive functionality to the deployer of the smart contract
     modifier onlyAuctioneer() {
@@ -80,7 +80,7 @@ contract SealedAuction is Suapp {
     mapping (address => Suave.DataId) privateKeysL1;
     mapping (address => bool) _addressHasBid;
     // keep track of the bidders
-    uint256 bidderAmount = 0;
+    uint256 public bidderAmount = 0;
     mapping (uint256 => address) bidderAddresses;
 
     modifier addressHasBid(address owner) {
