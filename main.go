@@ -67,11 +67,18 @@ func getFieldFromContract(contract *framework.Contract, fieldName string) []inte
 // only prints latest emitted event; flag to request new  event
 func printContractInfo(contract *framework.Contract) {
 	receipt := contract.SendConfidentialRequest("printInfo", nil, nil)
-	event, err := contract.Abi.Events["AuctionOpened"].ParseLog(receipt.Logs[0])
+	event, err := contract.Abi.Events["AuctionInfo"].ParseLog(receipt.Logs[0])
 	checkError(err)
-	fmt.Println("Contract address:", event["contractAddr"])
-	fmt.Println("End Timestamp: ", event["endTimestamp"])
-	fmt.Println("Number of Bidders: ", event["bidderAmount"])
+	fmt.Println("Auctioneer L1 Address:", event["auctioneerL1"])
+	fmt.Println("Auctioneer SUAVE Address:", event["auctioneerSUAVE"])
+	fmt.Println("NFT Holding Address:", event["nftHoldingAddress"])
+	fmt.Println("NFT Contract Address:", event["nftContract"])
+	fmt.Println("Token ID:", event["tokenId"])
+	fmt.Println("Auction Time Span:", event["auctionTimeSpan"])
+	fmt.Println("Auction End Time:", event["auctionEndTime"])
+	fmt.Println("Minimal Bid:", event["minimalBid"])
+	fmt.Println("Auction Has Started:", event["auctionHasStarted"])
+
 }
 
 func registerRPC(contract *framework.Contract) {
@@ -93,11 +100,11 @@ func registerTestRPC(contract *framework.Contract) {
 
 func getBiddingAddress(contract *framework.Contract) string {
 	receipt := contract.SendConfidentialRequest("getBiddingAddress", nil, nil)
-	event, err := contract.Abi.Events["BiddingAddress"].ParseLog(receipt.Logs[0])
+	event, err := contract.Abi.Events["EncBiddingAddress"].ParseLog(receipt.Logs[0])
 	checkError(err)
 	fmt.Println("Owner of Bidding address:", event["owner"])
-	fmt.Println("Encoded L1 address:", event["encodedL1Address"])
-	return event["encodedL1Address"].(string)
+	fmt.Println("Encrypted L1 address:", event["encryptedL1Address"])
+	return event["encryptedL1Address"].(string)
 }
 
 func createAccount() *framework.PrivKey {
@@ -321,10 +328,11 @@ func main() {
 	}
 	fmt.Println("1. Deploy Sealed Auction contract")
 	//TODO: adapt inputs to something interesting (not yet used)
-	auctionTimeInDays, chainId := big.NewInt(1), big.NewInt(420)                                    // chainId overridden by registerrpcendpoint
-	contract := deployContractWithConstructor(SuaveDevAccount, auctionTimeInDays, "MyNFT", chainId) // TODO: rpc handling in constructor does not work
+	auctionTimeInDays, nftTokenID, minimalBiddingAmount := big.NewInt(1), big.NewInt(420), big.NewInt(1000000000) // chainId overridden by registerrpcendpoint
+	beneficiaryAddress, nftContractAddress := L1DevAccount.Address(), L1DevAccount.Address()
+	contract := deployContractWithConstructor(SuaveDevAccount, beneficiaryAddress, nftContractAddress, auctionTimeInDays, nftTokenID, minimalBiddingAmount) // TODO: rpc handling in constructor does not work
 	//var contract = deployContract(path)
-	getFieldFromContract(contract, "auctionEndTime")
+	getFieldFromContract(contract, "auctionHasStarted")
 
 	fmt.Println("2. Register RPC endpoint")
 	registerRPC(contract)
