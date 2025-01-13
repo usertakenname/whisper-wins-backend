@@ -1,0 +1,175 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0" version="26.0.4">
+  <diagram name="Page-1" id="QBla1jNeCYpe691J3A3V">
+    <mxGraphModel dx="1000" dy="601" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-1" value="Auctioneer" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="40" y="40" width="100" height="530" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-2" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="Ie71_PIjbv8RXNOpyUh7-1" vertex="1">
+          <mxGeometry x="45" y="70" width="10" height="142" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-3" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="Ie71_PIjbv8RXNOpyUh7-1" vertex="1">
+          <mxGeometry x="45" y="356" width="10" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-4" value="WhisperWins" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="300" y="40" width="100" height="530" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-5" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="Ie71_PIjbv8RXNOpyUh7-4" vertex="1">
+          <mxGeometry x="45" y="80" width="10" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-6" value="Suave Blockchain" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="550" y="40" width="100" height="530" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-7" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="Ie71_PIjbv8RXNOpyUh7-6" vertex="1">
+          <mxGeometry x="45" y="80" width="10" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-8" value="Become Bidder" style="edgeStyle=elbowEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;curved=0;editable=1;movable=1;resizable=1;rotatable=1;deletable=1;locked=0;connectable=1;startArrow=none;startFill=0;" parent="1" target="Ie71_PIjbv8RXNOpyUh7-6" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="220.28571428571422" y="285.64571428571435" as="sourcePoint" />
+            <mxPoint x="350" y="285.64571428571435" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-9" value="Bidder" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="170" y="40" width="100" height="530" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-10" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="Ie71_PIjbv8RXNOpyUh7-9" vertex="1">
+          <mxGeometry x="45" y="230" width="10" height="104" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-11" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="Ie71_PIjbv8RXNOpyUh7-9" vertex="1">
+          <mxGeometry x="45" y="430" width="10" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-12" value="" style="endArrow=classic;html=1;rounded=0;jumpStyle=arc;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="95" y="130" as="sourcePoint" />
+            <mxPoint x="345" y="130" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-13" value="Create Auction" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" parent="Ie71_PIjbv8RXNOpyUh7-12" connectable="0" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-14" value="" style="endArrow=classic;html=1;rounded=0;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="356" y="140" as="sourcePoint" />
+            <mxPoint x="599.71" y="140" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-15" value="Deploy Auction Contract" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" parent="Ie71_PIjbv8RXNOpyUh7-14" connectable="0" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-17" value="Emit Bidding Address" style="edgeStyle=elbowEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;curved=0;dashed=1;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="595" y="324.3557142857143" as="sourcePoint" />
+            <mxPoint x="219.66666666666674" y="324.33333333333337" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-18" value="ETH Blockchain" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="690" y="40" width="100" height="530" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-19" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="Ie71_PIjbv8RXNOpyUh7-18" vertex="1">
+          <mxGeometry x="45" y="80" width="10" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-20" value="&lt;div&gt;End Auction&lt;/div&gt;" style="endArrow=classic;html=1;rounded=0;" parent="1" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="95" y="413" as="sourcePoint" />
+            <mxPoint x="599.5" y="413" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-21" value="" style="endArrow=classic;html=1;rounded=0;dashed=1;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="607" y="158" as="sourcePoint" />
+            <mxPoint x="735" y="158.04000000000008" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-22" value="&lt;div&gt;Create NFT-Wallet&lt;/div&gt;" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" parent="Ie71_PIjbv8RXNOpyUh7-21" connectable="0" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-23" value="" style="endArrow=classic;html=1;rounded=0;jumpStyle=arc;" parent="1" source="Ie71_PIjbv8RXNOpyUh7-2" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="98" y="210" as="sourcePoint" />
+            <mxPoint x="735.5000000000002" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-24" value="&lt;div&gt;Transfer NFT-Token&lt;/div&gt;" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" parent="Ie71_PIjbv8RXNOpyUh7-23" connectable="0" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-25" value="&lt;div&gt;Create Bid-Wallet&lt;/div&gt;" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=0.091;exitDx=0;exitDy=0;exitPerimeter=0;dashed=1;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="605" y="303" as="sourcePoint" />
+            <mxPoint x="740" y="303" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-27" value="Emit NFT-Wallet Address" style="edgeStyle=elbowEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;curved=0;dashed=1;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="595" y="176.28571428571433" as="sourcePoint" />
+            <mxPoint x="89.66666666666674" y="176.33333333333337" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-28" value="&lt;div&gt;Place Bid&lt;/div&gt;" style="edgeStyle=elbowEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;curved=0;editable=1;movable=1;resizable=1;rotatable=1;deletable=1;locked=0;connectable=1;startArrow=none;startFill=0;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="226" y="357" as="sourcePoint" />
+            <mxPoint x="739.5" y="357" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-30" value="Issue Move Funds" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="610" y="432" as="sourcePoint" />
+            <mxPoint x="739.5000000000002" y="432" as="targetPoint" />
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-31" value="Transfer Highest Bid" style="edgeStyle=elbowEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;curved=0;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="735.33" y="452.1157142857144" as="sourcePoint" />
+            <mxPoint x="89.5" y="452" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-32" value="Transfer NFT-Token (Winner)" style="edgeStyle=elbowEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;curved=0;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="735" y="492" as="sourcePoint" />
+            <mxPoint x="220" y="492" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-33" value="Transfer Bid Amount (Loser)" style="edgeStyle=elbowEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;curved=0;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="734" y="521" as="sourcePoint" />
+            <mxPoint x="219" y="521" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-35" value="" style="endArrow=classic;html=1;rounded=0;jumpStyle=arc;" parent="1" target="Ie71_PIjbv8RXNOpyUh7-6" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="95" y="238" as="sourcePoint" />
+            <mxPoint x="349" y="238" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ie71_PIjbv8RXNOpyUh7-36" value="Start Auction" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" parent="Ie71_PIjbv8RXNOpyUh7-35" connectable="0" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2ZCnwOG5n6uYkjbwpEYE-9" value="Contract" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=24;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="180" y="735" width="151" height="101" as="geometry" />
+        </mxCell>
+        <mxCell id="2ZCnwOG5n6uYkjbwpEYE-10" value="+ winnerL1Address&lt;div&gt;+ winningBidAmount&lt;/div&gt;&lt;div&gt;+ finalAuctionBlock&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" vertex="1" parent="2ZCnwOG5n6uYkjbwpEYE-9">
+          <mxGeometry y="24" width="151" height="77" as="geometry" />
+        </mxCell>
+        <mxCell id="2ZCnwOG5n6uYkjbwpEYE-13" value="Oracle" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="494" y="732" width="151" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="2ZCnwOG5n6uYkjbwpEYE-14" value="+ getBalanceAtBlock( address, uint256)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" vertex="1" parent="2ZCnwOG5n6uYkjbwpEYE-13">
+          <mxGeometry y="30" width="151" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="2ZCnwOG5n6uYkjbwpEYE-15" value="+ getCurrentEthBlock()" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" vertex="1" parent="2ZCnwOG5n6uYkjbwpEYE-13">
+          <mxGeometry y="60" width="151" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="2ZCnwOG5n6uYkjbwpEYE-18" value="+ revealBidders()&lt;div&gt;+ registerWinner(address)&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="180" y="836" width="150" height="89" as="geometry" />
+        </mxCell>
+        <mxCell id="2ZCnwOG5n6uYkjbwpEYE-19" value="1. After Auction Time call revealBidders(). Write finalAuctionBlock as getCurrentEthBlock from Oracle &amp;amp; emit addresses&lt;div&gt;2. Someone (or our Server) calls registerWinner(L1address). Contract calls getBalanceAtBlock(L1address, finalAuctionBlock). If balance &amp;gt; winningBidAmount -&amp;gt; override winner.&amp;nbsp;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;This approach work even if central entity (our server) is corrupted.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="127" y="981" width="658" height="149" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

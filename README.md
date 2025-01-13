@@ -22,7 +22,7 @@ To compile the contracts you need to run ```forge build```. To be able to do tha
 
 ## Run main.go
 1. Check if go is installed ```go version```
-2. Initialize go.mod ```go mod init <your-package-name> ``` package name can be arbitrary (e.g. suave/whisperwins)
+2. Initialize go.mod ```go mod init suave/whisperwins ```
 3. add ```replace github.com/ethereum/go-ethereum => github.com/flashbots/suave-geth v0.2.0``` to your go.mod file
 4. ```go mod tidy```
 5. ```forge build``` & copy your generated your-file.json to ~/go/pkd/mod/github.com/suapp-examples@v0.0.0-20241031122241-896ca6742979/out/your-file.sol/your-file.json (need to create /out/your-file.sol directories)

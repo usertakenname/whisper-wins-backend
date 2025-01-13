@@ -17,19 +17,23 @@ interface ERC20 {
 contract SealedAuction is Suapp {
     address public auctioneerL1; // TODO: which fields should be public?
     address public auctioneerSUAVE;
+    address public auctionWinner; 
+    uint256 public winningBid;
+    address public server = address(0xB5fEAfbDD752ad52Afb7e1bD2E40432A485bBB7F); //kettle address so far TODO: change to serverAddress
     address nftHoldingAddress = address(0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D);
     address public nftContract;
     uint256 public tokenId;
     uint256 public auctionTimeSpan;
     uint256 public auctionEndTime;
     uint256 public minimalBid;
+    uint256 public finalBlockNumber; // on ETH Chain
     bool public auctionHasStarted = false;
 
     // TODO delete - debugging only
     event AuctionInfo(address auctioneerL1, address auctioneerSUAVE, address nftHoldingAddress, address nftContract, uint256 tokenId, uint256 auctionTimeSpan,
-                    uint256 auctionEndTime, uint256 minimalBid, bool auctionHasStarted);
+                    uint256 auctionEndTime, uint256 minimalBid, bool auctionHasStarted, address winner, uint256 finalBlockNumber, uint256 winningBid);
     function printInfo() public returns (bytes memory) {
-        emit AuctionInfo(auctioneerL1, auctioneerSUAVE, nftHoldingAddress, nftContract, tokenId, auctionTimeSpan, auctionEndTime, minimalBid, auctionHasStarted);
+        emit AuctionInfo(auctioneerL1, auctioneerSUAVE, nftHoldingAddress, nftContract, tokenId, auctionTimeSpan, auctionEndTime, minimalBid, auctionHasStarted,auctionWinner,finalBlockNumber, winningBid);
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
@@ -40,6 +44,8 @@ contract SealedAuction is Suapp {
         tokenId = nftTokenId;
         auctionTimeSpan = auctionTimeInDays * 24 * 60 * 60;
         minimalBid = minimalBiddingAmount;
+        winningBid = 0;
+        auctionWinner = address(0);
     }
 
     // restrict sensitive functionality to the deployer of the smart contract
@@ -67,8 +73,94 @@ contract SealedAuction is Suapp {
 
     modifier afterAuctionTime() {
         require(auctionHasStarted, "Auction not yet started");
-        require(block.timestamp > auctionEndTime, "Auction time not over yet");
+        require(block.timestamp >= auctionEndTime, "Auction time not over yet");
         _;
+    }
+
+    modifier serverCall(){
+        require(msg.sender == server, "Only the server can perform this operation");
+        _;
+    }
+
+    modifier winnerRegistered(){
+        require(auctionWinner != address(0));
+        _;
+    }
+
+
+    function getEthBlockNumber(uint256 chainID) private rpcStored(chainID) returns (uint256){
+        string[] memory headers = new string[](1);
+        headers[0] = "Content-Type: application/json"; 
+        bytes memory _body = abi.encodePacked(
+                '{"jsonrpc":"2.0", "method": "eth_blockNumber", "params": [], "id": "',
+                uint2str(chainID),
+                '"}'
+                ); 
+        Suave.HttpRequest memory request = Suave.HttpRequest({
+            url: bytesToString(Suave.confidentialRetrieve(rpcRecords[chainID], RPC)),
+            method: "POST",
+            headers: headers,
+            body: _body,
+            withFlashbotsSignature: false,
+            timeout: 7000
+        });        
+        bytes memory response = Suave.doHTTPRequest(request);
+        return JSONParserLib.parseUintFromHex(stripQuotes(JSONParserLib.value(getJSONField(response, "result"))));
+    }
+
+    function registerFinalBlockNumber(uint256 _finalBlockNr) public emitOffchainLogs {
+        finalBlockNumber = _finalBlockNr;
+    }
+
+    // Idea is that anyone can claim themselves as the winner and the contract checks the balance of the account when the auction has ended (by final block number)
+    // Have a server monitor the revealed addresses and call this method with the winner
+    function refuteWinner(address addressToCheck,uint256 chainID) public rpcStored(chainID) confidential() addressHasBid(addressToCheck) returns (bytes memory) {
+        string[] memory headers = new string[](1);
+        headers[0] = "Content-Type: application/json";
+        bytes memory privateL1Key = Suave.confidentialRetrieve(privateKeysL1[addressToCheck], PRIVATE_KEYS);
+        address publicL1Address = Secp256k1.deriveAddress(bytesToString(privateL1Key)); 
+        bytes memory _body = abi.encodePacked(
+                '{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["',
+                toHexString(abi.encodePacked(publicL1Address)),
+                '",[],"',
+                uintToHexString(finalBlockNumber), 
+                //"latest", 
+                '"], "id": "',
+                uint2str(chainID),
+                '"}'
+                ); 
+        Suave.HttpRequest memory request = Suave.HttpRequest({
+            url: bytesToString(Suave.confidentialRetrieve(rpcRecords[chainID], RPC)),
+            method: "POST",
+            headers: headers,
+            body: _body,
+            withFlashbotsSignature: false,
+            timeout: 7000
+        });        
+        bytes memory response = Suave.doHTTPRequest(request);
+        uint256 balance = JSONParserLib.parseUintFromHex(stripQuotes(JSONParserLib.value(JSONParserLib.at(getJSONField(response, "result"),'"balance"'))));
+        if (balance > winningBid) {
+        return abi.encodeWithSelector(this.overrideWinner.selector,addressToCheck,balance);
+        }
+        emit WinnerAddress(auctionWinner);
+        return abi.encodeWithSelector(this.onchainCallback.selector);
+    }
+
+    function overrideWinner(address newWinner, uint256 newWinningBalance) public emitOffchainLogs {
+        emit WinnerAddress(newWinner);
+        auctionWinner = newWinner;
+        winningBid = newWinningBalance;
+    }
+
+    
+    function registerWinner() public confidential() serverCall() returns (bytes memory){
+        bytes memory confInput = Context.confidentialInputs();
+        address winner =  address(bytes20(confInput));
+        return abi.encodeWithSelector(this.updateWinner.selector,winner);
+    }
+
+    function updateWinner(address winner) public emitOffchainLogs {
+        auctionWinner = winner;
     }
 
     // simple callback to publish offchain events
@@ -93,7 +185,7 @@ contract SealedAuction is Suapp {
 
     // BIDDING RELATED FUNCTIONALITY ---------------------------------------------------------------------------------------------------------------------------------
     event RevealBiddingAddress(address bidder);
-    event WinnerAddress(address winner, uint256 amount);
+    event WinnerAddress(address winner);
     event EncBiddingAddress(address owner, string encryptedL1Address);
 
     string public PRIVATE_KEYS = "KEY";
@@ -125,7 +217,7 @@ contract SealedAuction is Suapp {
     }
 
     // emits the bidding address in a encrypted fashion, creates a new one if user has no bidding address so far
-    function getBiddingAddress() public returns (bytes memory) {
+    function getBiddingAddress() public confidential() returns (bytes memory) {
         if (_addressHasBid[msg.sender] == false) {
            // require(block.timestamp <= auctionEndTime, "Auction is already over, cannot create new bidding addresses."); TODO uncomment when NFT transfer is implemented
             string memory privateKey = Suave.privateKeyGen(Suave.CryptoSignature.SECP256);
@@ -151,6 +243,7 @@ contract SealedAuction is Suapp {
 
     // TODO replace with proper (AES) encryption precompile
     function encryptForAddress(address suaveAddress, address biddingAddress) internal pure returns (bytes memory) {
+        
         return abi.encodePacked(biddingAddress);
     }
 
@@ -206,6 +299,7 @@ contract SealedAuction is Suapp {
     event AuctionEndedAmbigious(uint256 numberMaxBidders, uint256 bidAmount);
     event FundsTooLessToPayout(address addr);
 
+    //reveal Bidders runs out of gas at 35 bidders 
   //  function revealBidders() public afterAuctionTime() returns (bytes memory) {
    function revealBidders() public  returns (bytes memory) {
         for (uint256 i = 0; i < bidderAmount; i++) {
@@ -213,6 +307,16 @@ contract SealedAuction is Suapp {
             address publicL1Address = Secp256k1.deriveAddress(bytesToString(privateL1Key));
             emit RevealBiddingAddress(publicL1Address);
         }
+        uint256 currentEthBlockNumber = getEthBlockNumber(1234321);
+        return abi.encodeWithSelector(this.registerFinalBlockNumber.selector,currentEthBlockNumber);
+    }
+
+
+    function endAuction2() public   returns (bytes memory) {
+        emit WinnerAddress(auctionWinner);
+        /*
+            refundAllBidsExcept(winner);
+            transferNFT(winner); */
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
@@ -246,7 +350,7 @@ contract SealedAuction is Suapp {
 /*             refundAllBids();
             refundNFT(); */
         } else {
-            emit WinnerAddress(winner, maxBid);
+            emit WinnerAddress(winner);
 /*             refundAllBidsExcept(winner);
             transferNFT(winner); */
         }
@@ -503,7 +607,8 @@ contract SealedAuction is Suapp {
     }
 
     function getBalance(address account) internal returns (uint256) {
-        return getBalance(account, 1234321);
+        //return getBalance(account, 11155111);
+    return getBalance(account, 1234321);
     }
 
     function getBalance(address account, uint256 chainId) internal rpcStored(chainId) returns (uint256) {
@@ -545,7 +650,7 @@ contract SealedAuction is Suapp {
 
         return string(chars);
     }
-
+    // look in LibString for library
     function toHexString(bytes memory data) internal pure returns (string memory) {
         bytes memory hexAlphabet = "0123456789abcdef";
         bytes memory str = new bytes(2 + data.length * 2);
@@ -567,7 +672,7 @@ contract SealedAuction is Suapp {
         return JSONParserLib.at(item, string.concat('"', key, '"'));
     }
 
-
+    //method in EthJsonRPC
     function stripQuotes(string memory input) internal pure returns (string memory) {
         bytes memory inputBytes = bytes(input);
         bytes memory result = new bytes(inputBytes.length - 2);
@@ -578,7 +683,7 @@ contract SealedAuction is Suapp {
 
         return string(result);
     }
-
+    //method in EthJsonRPC
     function stripQuotesAndPrefix(string memory s) internal pure returns (string memory) {
         bytes memory strBytes = bytes(s);
         bytes memory result = new bytes(strBytes.length - 4);
@@ -586,5 +691,51 @@ contract SealedAuction is Suapp {
             result[i - 3] = strBytes[i];
         }
         return string(result);
+    }
+
+    function uint2str(uint256 _i) internal pure returns (string memory _uintAsString) {
+        if (_i == 0) {
+            return "0";
+        }
+        uint j = _i;
+        uint len;
+        while (j != 0) {
+            len++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(len);
+        uint k = len;
+        while (_i != 0) {
+            k = k-1;
+            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
+            bytes1 b1 = bytes1(temp);
+            bstr[k] = b1;
+            _i /= 10;
+        }
+        return string(bstr);
+    }
+
+function uintToHexString(uint256 value) public pure returns (string memory) {
+        if (value == 0) {
+            return "0x0";
+        }
+
+        uint256 temp = value;
+        uint256 length = 0;
+        while (temp != 0) {
+            length++;
+            temp >>= 4; // Divide by 16
+        }
+
+        bytes memory buffer = new bytes(length);
+        while (value != 0) {
+            uint256 nibble = value & 0xf; // Extract the last 4 bits
+            buffer[--length] = nibble > 9
+                ? bytes1(uint8(87 + nibble)) // Convert to 'a'-'f' for 10-15
+                : bytes1(uint8(48 + nibble)); // Convert to '0'-'9' for 0-9
+            value >>= 4; // Divide by 16
+        }
+
+        return string(abi.encodePacked("0x", buffer));
     }
 }

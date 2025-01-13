@@ -1,20 +1,24 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/big"
 	"math/rand"
+	"net/http"
 	"os"
 	"time"
+
+	"suave/whisperwins/framework"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/suave/sdk"
-	"github.com/flashbots/suapp-examples/framework"
 	"github.com/joho/godotenv"
 )
 
@@ -78,21 +82,19 @@ func printContractInfo(contract *framework.Contract) {
 	fmt.Println("Auction End Time:", event["auctionEndTime"])
 	fmt.Println("Minimal Bid:", event["minimalBid"])
 	fmt.Println("Auction Has Started:", event["auctionHasStarted"])
-
+	fmt.Println("Final Block:", event["finalBlockNumber"])
+	fmt.Println("Auction Winner:", event["winner"])
+	fmt.Println("Winning Bid:", event["winningBid"])
 }
 
 func registerRPC(contract *framework.Contract) {
-	confidentialInput := "https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086"
+	var confidentialInput string
+	if useLiveNet {
+		confidentialInput = "https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086"
+	} else {
+		confidentialInput = "http://localhost:8555" // if local testchain
+	}
 	receipt := contract.SendConfidentialRequest("registerRPCOffchain", []interface{}{L1chainID}, []byte(confidentialInput))
-	event, err := contract.Abi.Events["RPCEndpointUpdated"].ParseLog(receipt.Logs[0])
-	checkError(err)
-	fmt.Println("RPC Point on contract updated to chainID:", event["chainId"])
-}
-
-func registerTestRPC(contract *framework.Contract) {
-	confidentialInput := "http://localhost:8555"
-	chainID := big.NewInt(LOCAL_TESTCHAIN_ID)
-	receipt := contract.SendConfidentialRequest("registerRPCOffchain", []interface{}{chainID}, []byte(confidentialInput))
 	event, err := contract.Abi.Events["RPCEndpointUpdated"].ParseLog(receipt.Logs[0])
 	checkError(err)
 	fmt.Println("RPC Point on contract updated to chainID:", event["chainId"])
@@ -111,6 +113,9 @@ func createAccount() *framework.PrivKey {
 	newAccountPrivKey := framework.GeneratePrivKey()
 	log.Printf("Created Address at: %s", newAccountPrivKey.Address().Hex())
 	fundBalance := big.NewInt(50000000000000) // fund 50000 GWEI
+	if !useLiveNet {
+		fundBalance = big.NewInt(10000000000000000) // fund more on local testnet
+	}
 	fmt.Println("Funding the L1 account with balance: ", fundBalance)
 	fundL1Account(newAccountPrivKey.Address(), fundBalance)
 	fundBalance = big.NewInt(10000000000000000)
@@ -136,14 +141,14 @@ func makeTransaction(privKey *framework.PrivKey, value *big.Int, to common.Addre
 	checkError(err)
 	nonce, err := L1client.PendingNonceAt(context.Background(), privKey.Address())
 	checkError(err)
-	tip := big.NewInt(1500000000)
+	tip := big.NewInt(1500000000) // 1,5 Gwei
 	currentNonce, err := L1client.NonceAt(context.Background(), privKey.Address(), nil)
 	checkError(err)
 	gasFee := big.NewInt(50000000).Add(gasPrice, tip)
 	/* 	fmt.Printf("Current nonce: %d and nonce: %f\n", currentNonce, nonce)
 	   	fmt.Printf("GasTipCap %d\t gasFeeCap %e\n", gasPrice, gasFee) */
 	if nonce != currentNonce {
-		nonce = currentNonce // override slow transaction
+		nonce = currentNonce // override slow transaction (only use when tx is stuck)
 	}
 	txnLegacy := &types.DynamicFeeTx{
 		Nonce:      nonce,
@@ -168,15 +173,15 @@ func makeTransaction(privKey *framework.PrivKey, value *big.Int, to common.Addre
 		_, pending, err := L1client.TransactionByHash(context.Background(), signedTx.Hash())
 		if err != nil {
 			fmt.Println("Transaction not found yet...")
-			time.Sleep(5 * time.Second)
 			continue
 		}
 		if pending {
 			fmt.Println("Transaction is pending...")
 		} else {
 			fmt.Println("Transaction included!")
+			break
 		}
-		break
+		time.Sleep(5 * time.Second)
 	}
 	_, err = bind.WaitMined(context.Background(), L1client, signedTx)
 	checkErrorWithMessage(err, "Error waiting for transaction to be mined: ")
@@ -207,7 +212,7 @@ func printChainInfo(mes string, out interface{}, err error) {
 
 func placeBid(privKey *framework.PrivKey, bidContract *framework.Contract) {
 	// SUAVE: get BiddingAddress by calling contract on suave chain
-	rand.Seed(time.Now().UnixNano())
+	//rand.Seed(time.Now().UnixNano())
 	toAddress := common.HexToAddress(getBiddingAddress(bidContract))
 	amount := big.NewInt(1000000000 + int64(rand.Intn(2000))) // (1 GWEI + ~2000)
 	// L1: create tx to send money
@@ -232,9 +237,18 @@ func fundL1Account(to common.Address, value *big.Int) error {
 	if err != nil {
 		return err
 	}
+	gasPrice, err := L1client.SuggestGasPrice(context.Background())
+	checkError(err)
+	header, err := L1client.HeaderByNumber(context.Background(), nil)
+	checkError(err)
 
-	log.Printf("funding account %s with %s", to.Hex(), value.String())
+	log.Printf("Consisting of value: %s, gasPrice: %s*21000 = %s, baseFee: %s", value, gasPrice, big.NewInt(0).Mul(gasPrice, big.NewInt(21000)), header.BaseFee)
 	log.Printf("funder %s %s", funderAddr.Hex(), balance.String())
+	value.Add(value, header.BaseFee)         // add baseFee from last block
+	value.Add(value, big.NewInt(1000000000)) // plus one GWEI for priority
+	gasPrice.Mul(gasPrice, big.NewInt(21000))
+	value.Add(value, gasPrice) // add gascosts
+	log.Printf("funding account %s with %s.", to.Hex(), value.String())
 	makeTransaction(L1DevAccount, value, to)
 	// check Balance
 	balance, err = L1client.BalanceAt(context.Background(), to, nil)
@@ -272,23 +286,54 @@ func endAuction(contract *framework.Contract) {
 	   		log.Fatalf("Failed to get account balance: %v", err)
 	   	}
 	   	fmt.Printf("Deployer account balance: %s wei\n", balance.String()) */
+	//sdk.SetDefaultGasLimit(uint64(0))
 	receipt := contract.SendConfidentialRequest("endAuction", nil, nil)
+	fmt.Println("GAS USED FOR TX", receipt.GasUsed)
+	fmt.Println("Effective gas price FOR TX", receipt.EffectiveGasPrice)
+	fmt.Println("CUMULATIVE GAS USED FOR TX", receipt.CumulativeGasUsed)
+
 	//SendTransactionWithIncreasedGas("endAuction", nil, nil)
-	event, err := contract.Abi.Events["WinnerAddress"].ParseLog(receipt.Logs[0])
-	checkError(err)
-	fmt.Println("AND THE WINNER IS:", event["winner"], " with the bid of: ", event["amount"])
+	if receipt.Status == types.ReceiptStatusFailed {
+		log.Fatal("End Auction call failed")
+	}
+	fmt.Println("End auction results:")
+	if receipt.Logs[0].Topics[0] == contract.Abi.Events["NoBidder"].ID {
+		_, err := contract.Abi.Events["NoBidder"].ParseLog(receipt.Logs[0])
+		checkError(err)
+		fmt.Println("NO WINNER AS NO BIDS WERE REGISTERED")
+	} else if receipt.Logs[0].Topics[0] == contract.Abi.Events["WinnerAddress"].ID {
+		event, err := contract.Abi.Events["WinnerAddress"].ParseLog(receipt.Logs[0])
+		checkError(err)
+		fmt.Println("AND THE WINNER IS:", event["winner"])
+	} else if receipt.Logs[0].Topics[0] == contract.Abi.Events["AuctionEndedAmbigious"].ID {
+		event, err := contract.Abi.Events["AuctionEndedAmbigious"].ParseLog(receipt.Logs[0])
+		checkError(err)
+		fmt.Println("Bidding ended in a draw with: ", event["numberMaxBidders"], "bidders having the same bid of: ", event["bidAmount"])
+	} else {
+		log.Fatal("SOMETHING WENT WRONG. Check endAuction functionality")
+	}
+
 }
 
 func revealBidders(contract *framework.Contract) []common.Address {
+	sdk.SetDefaultGasLimit(uint64(0))
 	receipt := contract.SendConfidentialRequest("revealBidders", nil, nil)
+	if receipt.Status == types.ReceiptStatusFailed {
+		panic("Revealing Bidders tx Failed")
+	}
 	bidderList := []common.Address{}
+	fmt.Println("Number of bidders: ", len(receipt.Logs))
 	for i := 0; i < len(receipt.Logs); i++ {
-		event, err := contract.Abi.Events["RevealBiddingAddress"].ParseLog(receipt.Logs[i])
-		checkError(err)
-		fmt.Println("Revealed L1 address:", event["bidder"])
-		bidderList = append(bidderList, event["bidder"].(common.Address))
+		if receipt.Logs[i].Topics[0] == contract.Abi.Events["RevealBiddingAddress"].ID {
+			event, err := contract.Abi.Events["RevealBiddingAddress"].ParseLog(receipt.Logs[i])
+			checkError(err)
+			fmt.Println("Revealed L1 address:", event["bidder"])
+			bidderList = append(bidderList, event["bidder"].(common.Address))
+		}
 	}
 	return bidderList
+	//helper(contract)
+	//return nil
 }
 
 // called before main()
@@ -296,30 +341,35 @@ func init() {
 	var err error
 	SuaveClient, err = ethclient.Dial("http://localhost:8545")
 	checkError(err)
-	L1client, err = ethclient.Dial("https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086")
-	checkError(err)
 	fr = framework.New(framework.WithL1())
 	err = godotenv.Load()
 	checkErrorWithMessage(err, "Error loading .env file: ")
-	// For private local L1 testnet uncomment
-	//suavePrivKey := os.Getenv("SUAVE_DEV_PRIVATE_KEY")
-	//L1DevAccount = framework.NewPrivKeyFromHex(suavePrivKey)
-	//L1chainID = *big.NewInt(LOCAL_TESTCHAIN_ID)
 
 	privKeySuave := os.Getenv("SUAVE_DEV_PRIVATE_KEY")
 	if privKeySuave == "" {
 		log.Fatal("ENTER PRIVATE Suave KEY in .env file!")
 	}
 	SuaveDevAccount = framework.NewPrivKeyFromHex(privKeySuave)
-	// --------------------------------------
-	// For Sepolia L1 testnet
-	L1chainID = big.NewInt(SEPOLIA_CHAIN_ID)
-	privKey := os.Getenv("L1_PRIVATE_KEY")
-	if privKey == "" {
-		log.Fatal("ENTER PRIVATE L1 KEY in .env file!")
+
+	if useLiveNet { // For Sepolia L1 testnet
+		L1client, err = ethclient.Dial("https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086")
+		checkError(err)
+		L1chainID = big.NewInt(SEPOLIA_CHAIN_ID)
+		privKey := os.Getenv("L1_PRIVATE_KEY")
+		if privKey == "" {
+			log.Fatal("ENTER PRIVATE L1 KEY in .env file!")
+		}
+		L1DevAccount = framework.NewPrivKeyFromHex(privKey)
+		checkError(err)
+	} else {
+		// For private local L1 testnet uncomment4
+		L1DevAccount = framework.NewPrivKeyFromHex(privKeySuave) // already given funds on L1 local testnet via genesis block
+		L1chainID = big.NewInt(LOCAL_TESTCHAIN_ID)
+		L1client, err = ethclient.Dial("http://localhost:8555")
+		checkError(err)
+
 	}
-	L1DevAccount = framework.NewPrivKeyFromHex(privKey)
-	checkError(err)
+
 }
 
 var SuaveClient *ethclient.Client
@@ -331,23 +381,24 @@ var SuaveDevAccount *framework.PrivKey
 var path = "SealedAuction.sol/SealedAuction.json"
 var fr *framework.Framework
 
+var useLiveNet = false
+
 func main() {
 	pause := false
 	if pause {
-		mainWithPause()
+		//mainWithPause()
 		return
 	}
 	fmt.Println("1. Deploy Sealed Auction contract")
 	//TODO: adapt inputs to something interesting (not yet used)
-	auctionTimeInDays, nftTokenID, minimalBiddingAmount := big.NewInt(1), big.NewInt(420), big.NewInt(1000000000) // chainId overridden by registerrpcendpoint
+	nftTokenID, auctionTimeInDays, minimalBiddingAmount := big.NewInt(420), big.NewInt(0), big.NewInt(1000000000) // chainId overridden by registerrpcendpoint
 	beneficiaryAddress, nftContractAddress := L1DevAccount.Address(), L1DevAccount.Address()
-	contract := deployContractWithConstructor(SuaveDevAccount, beneficiaryAddress, nftContractAddress, auctionTimeInDays, nftTokenID, minimalBiddingAmount) // TODO: rpc handling in constructor does not work
+	contract := deployContractWithConstructor(SuaveDevAccount, beneficiaryAddress, nftContractAddress, nftTokenID, auctionTimeInDays, minimalBiddingAmount) // TODO: rpc handling in constructor does not work
 	//var contract = deployContract(path)
 	getFieldFromContract(contract, "auctionHasStarted")
 
 	fmt.Println("2. Register RPC endpoint")
 	registerRPC(contract)
-	//registerTestRPC(contract)
 	printRPCEndpoint(contract)
 
 	fmt.Println("3. Print Contract Info")
@@ -363,76 +414,42 @@ func main() {
 	startAuction(contract)
 	fmt.Println("5. Create new account & bid")
 	// adapt sdk.go to solve the running out of gas
-	num_accounts := 2 // adapt accounts to be created here (must be <5 as 5 bidders makes endAuction() run out of gas)
+	num_accounts := 35 // adapt accounts to be created here (must be <13 as 13 bidders makes endAuction() run out of gas)
 	bidders := make([]*framework.PrivKey, 0)
 	for i := 0; i < num_accounts; i++ {
+		fmt.Println("Creating account #", i)
 		bidders = append(bidders, createAccount()) // appends newly created account (has funds on Suave and L1)
 		bidContract := contract.Ref(bidders[i])
 		placeBid(bidders[i], bidContract)
 	}
 
-	fmt.Println("6. Print Contract Info again")
-	printContractInfo(contract)
-
-	fmt.Println("7. Reveal bidders")
+	fmt.Println("6. Reveal bidders")
 	_ = revealBidders(contract)
-	/* 	if num_accounts < 5 {
+
+	fmt.Println("contract address: ", contract.Raw().Address())
+	//############################################################
+	chainID := big.NewInt(LOCAL_TESTCHAIN_ID)
+	for i := 0; i < num_accounts; i++ {
+		receipt := contract.SendConfidentialRequest("refuteWinner", []interface{}{bidders[i].Address(), chainID}, nil)
+		event, err := contract.Abi.Events["WinnerAddress"].ParseLog(receipt.Logs[0])
+		checkError(err)
+		fmt.Println("New Winner:", event["winner"])
+	}
+	/*	event, err := contract.Abi.Events["WinnerAddress"].ParseLog(receipt.Logs[0])
+		 	checkError(err)
+			fmt.Println("WinnerAddress:", event["winner"])
+			getFieldFromContract(contract, "auctionWinner") */
+	//############################################################
+
+	fmt.Println("7. Print Contract Info final")
+	printContractInfo(contract)
+	//endAuction(contract)
+
+	/* 	if num_accounts < 100 {
 		fmt.Println("8. End auction")
 		endAuction(contract)
-	}
-	*/
-}
+	} */
 
-func mainWithPause() {
-	var input = ""
-	fmt.Scanln(&input)
-	fmt.Println("1. Deploy Sealed Auction contract")
-	//TODO: contract := deployContractWithConstructor()
-	var contract = deployContract(path)
-	fmt.Scanln(&input)
-
-	fmt.Println("2. Register RPC endpoint")
-	/* TODO: uncomment this registerRPC(contract) */
-	registerTestRPC(contract)
-	printRPCEndpoint(contract)
-	fmt.Scanln(&input)
-
-	fmt.Println("3. Print Contract Info")
-	printContractInfo(contract)
-	fmt.Scanln(&input)
-
-	fmt.Println("4. Print Suave Chain Info")
-	printSuaveChainInfoComplete()
-	fmt.Scanln(&input)
-
-	fmt.Println("4. Print L1 Chain Info")
-	printL1ChainInfoComplete()
-	fmt.Scanln(&input)
-
-	fmt.Println("5. Create new account & bid")
-	num_accounts := 2 // adapt accounts to be created here
-	bidders := make([]*framework.PrivKey, 0)
-	for i := 0; i < num_accounts; i++ {
-		bidders = append(bidders, createAccount()) // appends newly created account (has funds on Suave and L1)
-		bidContract := contract.Ref(bidders[i])
-		placeBid(bidders[i], bidContract)
-	}
-	fmt.Scanln(&input)
-
-	fmt.Println("6. Print Contract Info again")
-	printContractInfo(contract)
-	fmt.Scanln(&input)
-
-	fmt.Println("7. Reveal bidders")
-	_ = revealBidders(contract)
-	fmt.Scanln(&input)
-
-	/*
-		 	if num_accounts < 5 {
-				fmt.Println("8. End auction")
-				endAuction(contract)
-			}
-	*/
 }
 
 func checkError(err error) {
@@ -445,4 +462,29 @@ func checkErrorWithMessage(err error, mes string) {
 	if err != nil {
 		log.Fatal(mes, err)
 	}
+}
+
+// TODO: adapt
+func helper(contract *framework.Contract) {
+	// call server with cronjob now
+	url := "http://127.0.0.1:8000/reveal-bidders"
+	day := 1
+	payload := []byte(fmt.Sprintf(`{"contract":"%s", "timeout":"%d"}`, contract.Raw().Address().Hex(), day))
+
+	// Make the POST request
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Error reading response:", err)
+		return
+	}
+
+	// Print the response
+	fmt.Println("Response from host:")
+	fmt.Println(string(body))
 }
