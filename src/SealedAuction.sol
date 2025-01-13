@@ -9,6 +9,7 @@ import "suave-std/Gateway.sol";
 import "suave-std/protocols/EthJsonRPC.sol";
 import "suave-std/crypto/Secp256k1.sol";
 import "solady/src/utils/JSONParserLib.sol";
+import "solady/src/utils/LibString.sol";
 
 interface ERC20 {
     function balanceOf(address) external view returns (uint256);
@@ -93,11 +94,11 @@ contract SealedAuction is Suapp {
         headers[0] = "Content-Type: application/json"; 
         bytes memory _body = abi.encodePacked(
                 '{"jsonrpc":"2.0", "method": "eth_blockNumber", "params": [], "id": "',
-                uint2str(chainID),
+                toString(chainID),
                 '"}'
                 ); 
         Suave.HttpRequest memory request = Suave.HttpRequest({
-            url: bytesToString(Suave.confidentialRetrieve(rpcRecords[chainID], RPC)),
+            url: string(Suave.confidentialRetrieve(rpcRecords[chainID], RPC)),
             method: "POST",
             headers: headers,
             body: _body,
@@ -107,6 +108,7 @@ contract SealedAuction is Suapp {
         bytes memory response = Suave.doHTTPRequest(request);
         return JSONParserLib.parseUintFromHex(stripQuotes(JSONParserLib.value(getJSONField(response, "result"))));
     }
+
 
     function registerFinalBlockNumber(uint256 _finalBlockNr) public emitOffchainLogs {
         finalBlockNumber = _finalBlockNr;
@@ -123,14 +125,14 @@ contract SealedAuction is Suapp {
                 '{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["',
                 toHexString(abi.encodePacked(publicL1Address)),
                 '",[],"',
-                uintToHexString(finalBlockNumber), 
+                LibString.toMinimalHexString(finalBlockNumber), 
                 //"latest", 
                 '"], "id": "',
-                uint2str(chainID),
+                toString(chainID),
                 '"}'
                 ); 
         Suave.HttpRequest memory request = Suave.HttpRequest({
-            url: bytesToString(Suave.confidentialRetrieve(rpcRecords[chainID], RPC)),
+            url: string(Suave.confidentialRetrieve(rpcRecords[chainID], RPC)),
             method: "POST",
             headers: headers,
             body: _body,
@@ -650,17 +652,14 @@ contract SealedAuction is Suapp {
 
         return string(chars);
     }
-    // look in LibString for library
+    
+
     function toHexString(bytes memory data) internal pure returns (string memory) {
-        bytes memory hexAlphabet = "0123456789abcdef";
-        bytes memory str = new bytes(2 + data.length * 2);
-        str[0] = "0";
-        str[1] = "x";
-        for (uint256 i = 0; i < data.length; i++) {
-            str[2 + i * 2] = hexAlphabet[uint256(uint8(data[i] >> 4))];
-            str[3 + i * 2] = hexAlphabet[uint256(uint8(data[i] & 0x0f))];
-        }
-        return string(str);
+        return LibString.toHexString(data);
+    }
+
+    function toString(uint256 value) internal pure returns (string memory str) {
+        return LibString.toString(value);
     }
 
     function getJSONField(bytes memory json, string memory key) internal pure returns (JSONParserLib.Item memory) {
@@ -693,49 +692,4 @@ contract SealedAuction is Suapp {
         return string(result);
     }
 
-    function uint2str(uint256 _i) internal pure returns (string memory _uintAsString) {
-        if (_i == 0) {
-            return "0";
-        }
-        uint j = _i;
-        uint len;
-        while (j != 0) {
-            len++;
-            j /= 10;
-        }
-        bytes memory bstr = new bytes(len);
-        uint k = len;
-        while (_i != 0) {
-            k = k-1;
-            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
-            bytes1 b1 = bytes1(temp);
-            bstr[k] = b1;
-            _i /= 10;
-        }
-        return string(bstr);
-    }
-
-function uintToHexString(uint256 value) public pure returns (string memory) {
-        if (value == 0) {
-            return "0x0";
-        }
-
-        uint256 temp = value;
-        uint256 length = 0;
-        while (temp != 0) {
-            length++;
-            temp >>= 4; // Divide by 16
-        }
-
-        bytes memory buffer = new bytes(length);
-        while (value != 0) {
-            uint256 nibble = value & 0xf; // Extract the last 4 bits
-            buffer[--length] = nibble > 9
-                ? bytes1(uint8(87 + nibble)) // Convert to 'a'-'f' for 10-15
-                : bytes1(uint8(48 + nibble)); // Convert to '0'-'9' for 0-9
-            value >>= 4; // Divide by 16
-        }
-
-        return string(abi.encodePacked("0x", buffer));
-    }
 }

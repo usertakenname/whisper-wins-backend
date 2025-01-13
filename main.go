@@ -414,7 +414,7 @@ func main() {
 	startAuction(contract)
 	fmt.Println("5. Create new account & bid")
 	// adapt sdk.go to solve the running out of gas
-	num_accounts := 35 // adapt accounts to be created here (must be <13 as 13 bidders makes endAuction() run out of gas)
+	num_accounts := 1 // adapt accounts to be created here (must be <13 as 13 bidders makes endAuction() run out of gas)
 	bidders := make([]*framework.PrivKey, 0)
 	for i := 0; i < num_accounts; i++ {
 		fmt.Println("Creating account #", i)
@@ -431,7 +431,7 @@ func main() {
 	chainID := big.NewInt(LOCAL_TESTCHAIN_ID)
 	for i := 0; i < num_accounts; i++ {
 		receipt := contract.SendConfidentialRequest("refuteWinner", []interface{}{bidders[i].Address(), chainID}, nil)
-		event, err := contract.Abi.Events["WinnerAddress"].ParseLog(receipt.Logs[0])
+		event, err := contract.Abi.Events["WinnerAddress"].ParseLog(receipt.Logs[i])
 		checkError(err)
 		fmt.Println("New Winner:", event["winner"])
 	}
@@ -441,14 +441,9 @@ func main() {
 			getFieldFromContract(contract, "auctionWinner") */
 	//############################################################
 
-	fmt.Println("7. Print Contract Info final")
-	printContractInfo(contract)
+	/* fmt.Println("7. Print Contract Info final")
+	printContractInfo(contract) */
 	//endAuction(contract)
-
-	/* 	if num_accounts < 100 {
-		fmt.Println("8. End auction")
-		endAuction(contract)
-	} */
 
 }
 
