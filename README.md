@@ -1,7 +1,11 @@
 # <h1 align="center"> Whisper-Wins Backend </h1>
 
-## General
+## What is Whisper-Wins?
+Whisper-Wins is an application designed to facilitate sealed auctions on the blockchain. By adopting the sealed auction model, it addresses the common drawbacks of current blockchain-based auctions, such as lack of privacy, MEV attacks, and last-minute bidding. This enhancement elevates the auction experience to a new level.
 
+This repository contains all the necessary files for the backend of Whisper-Wins. The corresponding frontend can be found [here](https://github.com/hadwrf/whisper-wins-frontend).
+
+## Repository Structure
 In essence, this repository consists of four smart contracts:
 
 1. [**Oracle.sol**](src/utils/Oracle.sol) contains all functionality regarding fetching data from RPCs enabling our SUAVE smart contracts to access L1-chain data and register at our server.
@@ -11,7 +15,7 @@ In essence, this repository consists of four smart contracts:
 
 Additionally, we set up a Python server that automatically calls *revealBidders* on the SealedAuction once the bidding time has ended. This approach is implemented for convenience, so users don't need to manually trigger this action, allowing the frontend to display the winner information seamlessly. All server-related files are located in the [server/](server/) directory.
 
- The [`main.go`](main.go) file tests the functionality of our contracts (see [Run main.go](#Run-main.go) for how to do this). In order to own NFTs on Sepolia we created two toy example NFT-contracts which both implement the ERC721 standard (can be found under [NFTs/](NFTs/)). The remaining contents are related to the frameworks we used.
+ The [`main.go`](main.go) file tests the functionality of our contracts (see [Run main.go](#run-maingo) for how to do this). In order to own NFTs on Sepolia we created two toy example NFT-contracts which both implement the ERC721 standard (can be found under [NFTs/](NFTs/)). The remaining contents are related to the frameworks we used.
 
 ## Workflow
 In order to better grasp the workflow of our application we designed a workflow diagram using [draw.io](https://app.diagrams.net/). The following graph describes how our application works. For further details please refer to the source code.
@@ -19,23 +23,28 @@ In order to better grasp the workflow of our application we designed a workflow 
 ![workflow graph of Whisper-Wins](AuctionFlowChartv2.svg)
 
 ## Limitations and Simplifications
-1. **Visibility of onchain callbacks:** In order to guarantee fairness, the onchain callbacks of offchain functions (e.g.: startAuction() and startAuctionCallback()) should only be callable by it offchain counterpart. By trying to modify the visibility to "internal" and "private" we ended up in compilation errors, though. Therefore, we are left with the assumption that the callbacks are only called by the responding offchain function(s).
+1. **Visibility of Onchain Callbacks:** To ensure fairness, the on-chain callbacks for off-chain functions (e.g., startAuction() and startAuctionCallback()) should ideally be callable only by their corresponding off-chain counterparts. However, when attempting to modify the visibility to "internal" or "private," we encountered compilation errors. As a result, we have to assume that these callbacks are only invoked by the respective off-chain function(s).
 
-2. **NFT storage:** To store the NFT during the auction we currently use a static address we control. Ideally, only the contract should be able to move the NFT. Initially we wanted to achieve this by using the factory contract as the NFT-holder and let it perform access control to incoming "transferNFT" calls (only the SealedAuction related to the NFT is allowed to do this). As we decided against the implementation of the FactoryContract, the SealedAuction needs to manage the NFT by itself. Therefore, we need an address with corresponding private key. Even though we can generate such a keypair and keep it confidential using SUAVE, that would require an additional transaction by the auctioneer after deploying the contract.
+2. **NFT Storage:** Ideally, only the contract should be able to move the NFT. Our initial approach was to use the *FactoryContract* as the NFT holder, allowing it to perform access control on incoming transferNFT calls (ensuring only the *SealedAuction* related to the NFT could trigger the transfer). However, since we decided against implementing the *FactoryContract*, the *SealedAuction* now needs to manage the NFT directly. <br/>
+As a result, we require an address with a corresponding private key. While we could generate such a keypair and keep it confidential using SUAVE, this would require an additional transaction from the auctioneer after deploying the contract. Given that this approach is unintuitive and could disrupt the flow, we decided to store the NFT during the auction in a static address of which we know the private key.
 
 
-## Setup
+## Required Tools and Versions
 In order to run the server, you need have the latest version of [Python](https://www.python.org/downloads/) and its module `flask` installed.
 
 For running a local SUAVE devnet, make sure to have a version of `suave-geth` installed properly and added to your path. You can find help on how to get there [here](https://suave-alpha.flashbots.net/tutorials/run-suave). <br/>
 <span style="color: red;">**Important**: As we are dependent on an encryption precompile, you have to build `suave-geth` from source using [this](https://github.com/jonasgebele/suave-geth.git) repository!</span>
 
-To compile the contracts you need to run `forge build`. To be able to do that you might need to install [Foundry](https://getfoundry.sh). See the [book](https://book.getfoundry.sh/getting-started/installation.html) for instructions on how to install and use Foundry.
+To compile the smart contracts you need to run `forge build`. To be able to do that you might need to install [Foundry](https://getfoundry.sh) (atleast 0.2.2). See the [book](https://book.getfoundry.sh/getting-started/installation.html) for instructions on how to install and use Foundry. We use Solidity 0.8.19 to compile the contracts.
 
 In order to run our go files, you will need a `go` version of atleast 1.23.1. Help on how to install can be found [here](https://go.dev/doc/install) and on how to update an existing version can be found [here](https://gist.github.com/nikhita/432436d570b89cab172dcf2894465753).
 
+Our application needs to control port 8001 (python server), 8545, 8546, 8551 and 8555 (all for local SUAVE devnet).
 
-## General deployment procedure on a local SUAVE devnet:
+In order to place a bid, make sure to have an EOA on Sepolia with sufficient funds. Help on how to get there can be found [here](https://blog.chain.link/sepolia-eth/).
+
+
+## General Deployment Procedure on a Local SUAVE Devnet:
 This section explains how to deploy and interact with a smart contract on your local SUAVE-chain. In the following section, you'll find a concrete example demonstrating how to do this with the *SealedAuction* contract.
 
 1. **Start your local suave chain:**
@@ -58,7 +67,7 @@ suave-geth spell deploy <file.sol>:<contract-name>
 suave-geth spell conf-request [--confidential-input <input-data>] <contract-address> '<function-name(<argument-type-list>)>' '(<argument-list>)'
 ```
 
-## How to get a SealedAuction running:
+## How to Get a SealedAuction Running:
 To deploy and interact with a SealedAuction, simply copy the following terminal commands:
 
 1. Start the python server: `python3 server/server.py`
