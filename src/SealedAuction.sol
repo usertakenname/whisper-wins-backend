@@ -352,7 +352,7 @@ contract SealedAuction is Suapp {
 
     function registerContractToServer() public view returns (bytes memory) {
         Oracle oracleRPC = Oracle(oracle);
-        return oracleRPC.registerContractToServer(this.address, auctionEndTime);
+        return oracleRPC.registerContractToServer(address(this), auctionEndTime);
     }
 
     function finaliseStartAuction() external view onlyOracle returns (bytes memory) {
@@ -457,7 +457,6 @@ contract SealedAuction is Suapp {
     }
 
     // END-AUCTION RELATED FUNCTIONALITY -----------------------------------------------------------------------------------------------------------------------------
-
     function revealBidders()
         public
         confidential

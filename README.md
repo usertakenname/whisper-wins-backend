@@ -4,12 +4,14 @@
 
 In essence, this repository consists of four smart contracts:
 
-1. [**Oracle.sol**](src/utils/Oracle.sol) contains all functionality regarding fetching data from RPCs enabling our SUAVE smart contracts to access L1-chain data.
-2. [**SealedAuction.sol**](src/SealedAuction.sol)  represents one sealed auction. It regulates ownership of the NFT, bidder and bidding as well as state and resolvement of the auction. Thereby, it represents the core functionality of our "backend".
-3. [**FactoryContract.sol**](src/FactoryContract.sol) should initially act as the factory pattern and create an instance of an *SealedAuction* per auction. Due to complexity of implementing this in solidity however, we decided to have the auctioneer create the smart contract through the frontend. Therefore, this contract is unfinished and does not contain any used functionality within our application.
-4. [**WhisperBasic.sol**](src/WhisperBasic.sol) served as a playground to get familiar with the SUAVE-framwork. Many concepts we tried out there found their way into SealedAuction contract.
+1. [**Oracle.sol**](src/utils/Oracle.sol) contains all functionality regarding fetching data from RPCs enabling our SUAVE smart contracts to access L1-chain data and register at our server.
+2. [**SealedAuction.sol**](src/SealedAuction.sol) represents a sealed auction. It regulates ownership of the NFT, bidder and bidding as well as state and resolvement of the auction. Thereby, it represents the core functionality of our "backend".
+3. [**FactoryContract.sol**](src/FactoryContract.sol) should initially act as the factory pattern and create an instance of an *SealedAuction* per auction. Due to the complexity of implementing this in solidity however, we decided to have the auctioneer create the smart contract through the frontend. Therefore, this contract is unfinished and does not contain any used functionality within our application.
+4. [**WhisperBasic.sol**](src/WhisperBasic.sol) served as a playground to get familiar with the SUAVE-framwork. Several of the concepts we experimented with have been integrated into **SealedAuction.sol**.
 
-The [`main.go`](main.go) file tests the functionality of our contracts (see [Testing](#Testing) for how to do this). In order to own NFTs on Sepolia we created two toy example NFT-contracts which both implement the ERC721 standard (can be found under [NFTs/](NFTs/)). The remaining contents are related to the frameworks we used.
+Additionally, we set up a Python server that automatically calls *revealBidders* on the SealedAuction once the bidding time has ended. This approach is implemented for convenience, so users don't need to manually trigger this action, allowing the frontend to display the winner information seamlessly. All server-related files are located in the [server/](server/) directory.
+
+ The [`main.go`](main.go) file tests the functionality of our contracts (see [Run main.go](#Run-main.go) for how to do this). In order to own NFTs on Sepolia we created two toy example NFT-contracts which both implement the ERC721 standard (can be found under [NFTs/](NFTs/)). The remaining contents are related to the frameworks we used.
 
 ## Workflow
 In order to better grasp the workflow of our application we designed a workflow diagram using [draw.io](https://app.diagrams.net/). The following graph describes how our application works. For further details please refer to the source code.
@@ -23,45 +25,49 @@ In order to better grasp the workflow of our application we designed a workflow 
 
 
 ## Setup
+In order to run the server, you need have the latest version of [Python](https://www.python.org/downloads/) and its module `flask` installed.
 
-Make sure to have the latest version of `suave-geth` installed properly and can run it locally. You can find help on how to get there [here](https://suave-alpha.flashbots.net/tutorials/run-suave).
+For running a local SUAVE devnet, make sure to have a version of `suave-geth` installed properly and added to your path. You can find help on how to get there [here](https://suave-alpha.flashbots.net/tutorials/run-suave). <br/>
+<span style="color: red;">**Important**: As we are dependent on an encryption precompile, you have to build `suave-geth` from source using [this](https://github.com/jonasgebele/suave-geth.git) repository!</span>
+
 To compile the contracts you need to run `forge build`. To be able to do that you might need to install [Foundry](https://getfoundry.sh). See the [book](https://book.getfoundry.sh/getting-started/installation.html) for instructions on how to install and use Foundry.
 
-## Genereally startup procedure:
+In order to run our go files, you will need a `go` version of atleast 1.23.1. Help on how to install can be found [here](https://go.dev/doc/install) and on how to update an existing version can be found [here](https://gist.github.com/nikhita/432436d570b89cab172dcf2894465753).
 
-### **Start your local suave chain:**
+
+## General deployment procedure on a local SUAVE devnet:
+This section explains how to deploy and interact with a smart contract on your local SUAVE-chain. In the following section, you'll find a concrete example demonstrating how to do this with the *SealedAuction* contract.
+
+1. **Start your local suave chain:**
 ```bash
 suave-geth --suave.dev --suave.eth.external-whitelist='*'
 ```
 
-### **Compile the contracts:**
+2. **Compile the contracts:**
 ```bash
 forge build
 ```
 
-### **Deploy the necessary contracts:**
+3. **Deploy the necessary contracts:**
 ```bash
 suave-geth spell deploy <file.sol>:<contract-name>
 ```
 
-### **Call functions of the deployed contracts:**
+4. **Call functions of the deployed contracts [with confidential input]:**
 ```bash
 suave-geth spell conf-request [--confidential-input <input-data>] <contract-address> '<function-name(<argument-type-list>)>' '(<argument-list>)'
 ```
 
-## Get SealedAuction running:
+## How to get a SealedAuction running:
+To deploy and interact with a SealedAuction, simply copy the following terminal commands:
 
-1. Start your local suave chain: `suave-geth --suave.dev --suave.eth.external-whitelist='*'`
-2. Compile the contracts: `forge build`
-3. Deploy the necessary contracts: `suave-geth spell deploy SealedAuction.sol:SealedAuction` (Note: scan the generated opout for the address of the deployed contract)
-4. Set up the rpc endpoints for the both Sepolia and Toliman:
-
-- `suave-geth spell conf-request <contract-address> 'registerRPCOffchain(uint256,string)' '(33626250, https://rpc.toliman.suave.flashbots.net)'`
-- `suave-geth spell conf-request --confidential-input https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086 <contract-address> 'registerRPCOffchain(uint256)' '(11155111)'`
-
+1. Start the python server: `python3 server/server.py`
+2. Start local chain: `suave-geth --suave.dev --suave.eth.external-whitelist='*'`
+3. Compile the contracts: `forge build`
+4. Deploy the contract: `suave-geth spell deploy SealedAuction.sol:SealedAuction` <br/> (<span style="color: red;">Important:</span> Scan the generated output for the address of the deployed contract and insert it in the next step)
 5. Get your L1-bidding address with: `suave-geth spell conf-request <contract-address> 'getBiddingAddress()'`
-6. You can now prepare and sign a L1-bid and send it as conf-input in a conf-request to the `'placeBid()'` method of the deployed contract.
-7. When the auction has ended, call `'revealBidders()'` to display all bidding-addresses and `'endAuction()'` to move the funds accordingly.
+6. You can now place a bid by sending Sepolia ETH to your L1-bidding address.
+7. Once the auction has ended, you can call `'revealBidders()'` to reveal all bidding addresses by adjusting the line of step 5 (the revealing is done automatically by the server). Depending on whether you have lost or won the bid, you can then use `'refundBid()'` or `'transferNFT()'` accordingly.
 
 ## Run main.go
 1. Check if go is installed ```go version```
