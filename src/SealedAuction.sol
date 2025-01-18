@@ -245,6 +245,27 @@ contract SealedAuction is Suapp {
             );
     }
 
+    //######################################################
+    // simplification: only oracle can register winner (no optimistic rollup)
+    // todo: add modifier (only our server can call this)
+    function registerWinner(
+        address addressToCheck
+    )
+        public
+        confidential
+        addressHasBid(addressToCheck)
+        afterAuctionTime
+        returns (bytes memory)
+    {
+        bytes memory privateL1Key = Suave.confidentialRetrieve(
+            privateKeysL1[addressToCheck],
+            PRIVATE_KEYS
+        );
+        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
+        return
+            abi.encodeWithSelector(this.updateWinner.selector, publicL1Address);
+    }
+    //######################################################
     function refuteWinnerCallback(
         address checkedAddress,
         uint256 balance
@@ -467,20 +488,12 @@ contract SealedAuction is Suapp {
             );
     }
 
-    function refundNFT() internal isWinner(msg.sender) {
-        bytes memory privateL1Key = Suave.confidentialRetrieve(
-            privateKeysL1[msg.sender],
-            PRIVATE_KEYS
-        );
-        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
-        require(
-            publicL1Address == auctionWinner,
-            "You can not claim the NFT as you are not the winner of the auction"
-        );
+    
+    function refundNFT() internal auctionHasStarted  {
         // TODO transfer back to auctioneerL1
     }
 
-    function transferNFT(address winner) internal {
+    function transferNFT(address winner) isWinner(msg.sender) public {
         // TODO transfer nft to winner from address of ingoing tx
         // TODO transfer funds in winner address to auctioneerL1
     }
