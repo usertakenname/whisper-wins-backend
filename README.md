@@ -19,3 +19,20 @@ To compile the contracts you need to run ```forge build```. To be able to do tha
 5. Get your L1-bidding address with: ```suave-geth spell conf-request <contract-address> 'getBiddingAddress()'```
 6. You can now prepare and sign a L1-bid and send it as conf-input in a conf-request to the ```'placeBid()'``` method of the deployed contract.
 7. When the auction has ended, call ```'revealBidders()'``` to display all bidding-addresses and ```'endAuction()'``` to move the funds accordingly.
+
+## Run main.go
+1. Check if go is installed ```go version```
+2. Initialize go.mod ```go mod init suave/whisperwins ```
+3. add ```replace github.com/ethereum/go-ethereum => github.com/flashbots/suave-geth v0.2.0``` to your go.mod file
+4. ```go mod tidy```
+5. ```forge build``` & copy your generated your-file.json to ~/go/pkd/mod/github.com/suapp-examples@v0.0.0-20241031122241-896ca6742979/out/your-file.sol/your-file.json (need to create /out/your-file.sol directories)
+6. Start your local suave chain: ```suave-geth --suave.dev --suave.eth.external-whitelist='*'```
+7. To run your own L1 testnet refer to section [Start L1 testnet](#start-l1-testnet) otherwise connect to Sepolia like this:
+8. Add your Sepolia private key to [.env](.env) file. This will be used to fund accounts for bidding.
+9. ```go run main.go```
+
+
+### Start L1 testnet
+1. Initialize your local L1 chain with genesis block (geth needed): ```geth init --datadir myDatadir genesis.json``` (this creates myDatadir/geth directory)
+2. For L1 Testing run ```geth --dev --http --http.port 8555 --datadir myDatadir/ --ipcpath ~/ipc/```
+3. You can use ```geth attach ~/ipc``` to attach an console to the geth chain & ```suave-geth attach /tmp/geth.ipc``` for the suave chain
