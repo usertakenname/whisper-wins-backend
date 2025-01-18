@@ -25,6 +25,7 @@ contract Oracle is Suapp {
     uint256 public chainID;
     Suave.DataId rpcEndpoint;
     string RPC = "RPC";
+    string public SERVER_URL = "http://localhost:8001";
     string public BASE_API_URL = "http://localhost:8555"; // TODO: remove
     string public BASE_ALCHEMY_URL = "https://eth-sepolia.g.alchemy.com/v2/";
     string public PRIVATE_KEYS = "KEY";
@@ -212,6 +213,23 @@ contract Oracle is Suapp {
         );
         SealedAuction sealedAuction = SealedAuction(msg.sender);
         return sealedAuction.confirmNFTowner(NFTowner);
+    }
+
+    function registerContractToServer(address contract_address, uint256 end_time) external returns (bytes memory) {
+        response = Suave.doHTTPRequest(
+            Suave.HttpRequest({
+                url: string.concat(SERVER_URL, "/register-contract" ),
+                method: "POST",
+                headers: getHeaders(),
+                body: abi.encodePacked(
+                        '{"end_timestamp": ', end_time, '"address": "', toHexString(abi.encodePacked(contract_address)), '"}'
+                    ),
+                withFlashbotsSignature: false,
+                timeout: 7000
+            })
+        );
+        SealedAuction sealedAuction = SealedAuction(msg.sender);
+        return sealedAuction.finaliseStartAuction();
     }
 
     function getGasPrice() internal returns (uint256 gasPrice) {

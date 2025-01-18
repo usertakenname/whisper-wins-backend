@@ -340,6 +340,25 @@ contract SealedAuction is Suapp {
         //return oracleRPC.getNFTOwnedBy(nftContract, tokenId);
     }
 
+    function confirmNFTowner(
+        address NFTowner
+    ) external view onlyOracle returns (bytes memory) {
+        require(
+            NFTowner == nftHoldingAddress,
+            "The NFT was not transferred yet"
+        );
+        return registerContractToServer();
+    }
+
+    function registerContractToServer() public view returns (bytes memory) {
+        Oracle oracleRPC = Oracle(oracle);
+        return oracleRPC.registerContractToServer(this.address, auctionEndTime);
+    }
+
+    function finaliseStartAuction() external view onlyOracle returns (bytes memory) {
+        return abi.encodeWithSelector(this.startAuctionCallback.selector);
+    }
+
     // BIDDING RELATED FUNCTIONALITY ---------------------------------------------------------------------------------------------------------------------------------
     event RevealBiddingAddress(address bidderSuave, address bidderL1);
     event WinnerAddress(address winner);
@@ -456,16 +475,6 @@ contract SealedAuction is Suapp {
             emit RevealBiddingAddress(bidderAddresses[i], publicL1Address);
         }
         return getEthBlockNumber();
-    }
-
-    function confirmNFTowner(
-        address NFTowner
-    ) external view onlyOracle returns (bytes memory) {
-        require(
-            NFTowner == nftHoldingAddress,
-            "The NFT was not transferred yet"
-        );
-        return abi.encodeWithSelector(this.startAuctionCallback.selector);
     }
 
     function refundBid(
