@@ -75,7 +75,6 @@ func printContractInfo(contract *framework.Contract) {
 	if len(receipt.Logs) > 0 {
 		event, err := contract.Abi.Events["AuctionInfo"].ParseLog(receipt.Logs[0])
 		checkError(err)
-		fmt.Println("Auctioneer L1 Address:", event["auctioneerL1"])
 		fmt.Println("Auctioneer SUAVE Address:", event["auctioneerSUAVE"])
 		fmt.Println("NFT Holding Address:", event["nftHoldingAddress"])
 		fmt.Println("NFT Contract Address:", event["nftContract"])
@@ -278,13 +277,17 @@ func printRPCEndpoint(contract *framework.Contract) {
 
 func startAuction(contract *framework.Contract) {
 	receipt := contract.SendConfidentialRequest("startAuction", nil, nil)
-	event, err := contract.Abi.Events["AuctionOpened"].ParseLog(receipt.Logs[0])
-	checkError(err)
-	fmt.Println("Contract Address:", event["contractAddr"])
-	fmt.Println("NFT Contract Address:", event["nftContractAddress"])
-	fmt.Println("NFT Token ID:", event["nftTokenId"])
-	fmt.Println("End Timestamp:", event["endTimestamp"])
-	fmt.Println("Minimal Bidding Amount:", event["minimalBiddingAmount"])
+	for i := 0; i < len(receipt.Logs); i++ {
+		if receipt.Logs[i].Topics[0] == contract.Abi.Events["AuctionOpened"].ID {
+			event, err := contract.Abi.Events["AuctionOpened"].ParseLog(receipt.Logs[i])
+			checkError(err)
+			fmt.Println("Contract Address:", event["contractAddr"])
+			fmt.Println("NFT Contract Address:", event["nftContractAddress"])
+			fmt.Println("NFT Token ID:", event["nftTokenId"])
+			fmt.Println("End Timestamp:", event["endTimestamp"])
+			fmt.Println("Minimal Bidding Amount:", event["minimalBiddingAmount"])
+		}
+	}
 }
 
 // TODO: Remove this
@@ -355,8 +358,6 @@ func revealBidders(contract *framework.Contract) []common.Address {
 		}
 	}
 	return bidderList
-	//helper(contract)
-	//return nil
 }
 
 // called before main
@@ -429,8 +430,8 @@ func main() {
 	auctionInSeconds := int64(10)
 	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
 	nftTokenID, minimalBiddingAmount := big.NewInt(420), big.NewInt(1000000000)
-	beneficiaryAddress, nftContractAddress := L1DevAccount.Address(), L1DevAccount.Address()
-	contract := deployContractWithConstructor(path, SuaveDevAccount, beneficiaryAddress, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracle.Raw().Address()) // TODO: rpc handling in constructor does not work
+	nftContractAddress := L1DevAccount.Address()
+	contract := deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracle.Raw().Address()) // TODO: rpc handling in constructor does not work
 	time.AfterFunc(time.Duration(auctionInSeconds)*time.Second, func() {
 		fmt.Println("Auction ended!")
 	})
@@ -446,8 +447,8 @@ func main() {
 	printL1ChainInfoComplete()
 
 	fmt.Println("4.5. Start Auction")
-	//startAuction(contract)
-	startAuctionTest(contract)
+	startAuction(contract)
+	//startAuctionTest(contract)
 	fmt.Println("5. Create new account & bid")
 	num_accounts := 2 // adapt accounts to be created here
 	bidders := make([]*framework.PrivKey, 0)
@@ -458,40 +459,71 @@ func main() {
 		placeBid(bidders[i], bidContract)
 	}
 
-	fmt.Println("6. Reveal bidders\nWaiting for the auction to end...")
+	/*
+		 	fmt.Println("6. Reveal bidders\nWaiting for the auction to end...")
+			time.Sleep(time.Duration(auctionInSeconds) * time.Second) //TODO: fix timing here as block.timestamp is unreliable
+			fmt.Println("Current time: ", time.Now().Unix())
+			getFieldFromContract(contract, "auctionEndTime")
+			biddedAddresses := revealBidders(contract)
+	*/
+	fmt.Println("7. Waiting for server to reveal bidders...")
 	time.Sleep(time.Duration(auctionInSeconds) * time.Second) //TODO: fix timing here as block.timestamp is unreliable
 	fmt.Println("Current time: ", time.Now().Unix())
 	getFieldFromContract(contract, "auctionEndTime")
-	biddedAddresses := revealBidders(contract)
+	biddedAddresses := revealBidders(contract) // need this to get the contracts but winner should have been determined
 
-	fmt.Println("contract address: ", contract.Raw().Address())
-	getFieldFromContract(contract, "finalBlockNumber")
+	winner := getFieldFromContract(contract, "auctionWinner")[0].(common.Address)
 
-	fmt.Println("7. Refute winner")
-	fmt.Println("Claim as winner: ", bidders[1].Address())
-	receipt = contract.SendConfidentialRequest("refuteWinner", []interface{}{bidders[1].Address()}, nil)
-	printReceipt(receipt, contract, oracle)
+	/* 	fmt.Println("7. Refute winner")
+	   	fmt.Println("Claim as winner: ", bidders[1].Address())
+	   	receipt = contract.SendConfidentialRequest("refuteWinner", []interface{}{bidders[1].Address()}, nil)
+	   	printReceipt(receipt, contract, oracle) */
 
 	fmt.Println("8. Print Contract Info final")
-	sdk.SetDefaultGasLimit(10000000)
+	sdk.SetDefaultGasLimit(3000000)
 	printContractInfo(contract)
+	sdk.SetDefaultGasLimit(0)
 
 	fmt.Println("9. Return funds")
-	balance, err := L1client.BalanceAt(context.Background(), biddedAddresses[0], nil)
+	for i := 0; i < num_accounts; i++ {
+		if biddedAddresses[i] == winner {
+			fmt.Println("♛ The address: ", biddedAddresses[i], " won the auction and will not get their funds back ♛")
+			continue
+		}
+		balance, err := L1client.BalanceAt(context.Background(), biddedAddresses[i], nil)
+		checkError(err)
+		fmt.Println("BEFORE Refund bid: ", biddedAddresses[i], " has balance of ", balance)
+		bidContract := contract.Ref(bidders[i])
+		fmt.Println("Get funds back for Suave Address:", bidders[i].Address())
+		_ = bidContract.SendConfidentialRequest("refundBid", []interface{}{bidders[i].Address()}, nil)
+		balance, err = L1client.BalanceAt(context.Background(), biddedAddresses[i], nil)
+		checkError(err)
+		fmt.Println("AFTER Refund bid: ", biddedAddresses[i], " has balance of ", balance)
+	}
+	fmt.Println("10. Return winning bid to auctioneer")
+	balance, err := L1client.BalanceAt(context.Background(), winner, nil)
 	checkError(err)
-	fmt.Println("BEFORE Refund bid: ", biddedAddresses[0], " has balance of ", balance)
-	bidContract := contract.Ref(bidders[0])
-	fmt.Println("Get funds back for ", bidders[0].Address())
-	_ = bidContract.SendConfidentialRequest("refundBid", []interface{}{bidders[0].Address()}, nil)
-	balance, err = L1client.BalanceAt(context.Background(), biddedAddresses[0], nil)
+	fmt.Println("BEFORE returning the winning bid (Winning Bid Address): ", winner, " has balance of ", balance)
+	balance, err = L1client.BalanceAt(context.Background(), SuaveDevAccount.Address(), nil)
 	checkError(err)
-	fmt.Println("AFTER Refund bid: ", biddedAddresses[0], " has balance of ", balance)
+	fmt.Println("BEFORE returning the winning bid (Auctioneer Address): ", SuaveDevAccount.Address(), " has balance of ", balance)
+	getFieldFromContract(contract, "auctioneerSUAVE")
+	fmt.Println("CAlling with :", SuaveDevAccount.Address())
+	contract = contract.Ref(SuaveDevAccount)
+	receipt = contract.SendConfidentialRequest("claimWinningBid", []interface{}{SuaveDevAccount.Address()}, nil)
+	printReceipt(receipt, contract, oracle)
+	balance, err = L1client.BalanceAt(context.Background(), winner, nil)
+	checkError(err)
+	fmt.Println("AFTER returning the winning bid (Winning Bid Address): ", winner, " has balance of ", balance)
+	balance, err = L1client.BalanceAt(context.Background(), SuaveDevAccount.Address(), nil)
+	checkError(err)
+	fmt.Println("AFTER returning the winning bid: (Auctioneer Address) ", SuaveDevAccount.Address(), " has balance of ", balance)
 }
 
 func printReceipt(receipt *types.Receipt, contract, oracle *framework.Contract) {
 	for i := 0; i < len(receipt.Logs); i++ {
-		if receipt.Logs[i].Topics[0] == oracle.Abi.Events["testEvent"].ID {
-			event, err := oracle.Abi.Events["testEvent"].ParseLog(receipt.Logs[i])
+		if receipt.Logs[i].Topics[0] == contract.Abi.Events["testEvent"].ID {
+			event, err := contract.Abi.Events["testEvent"].ParseLog(receipt.Logs[i])
 			checkError(err)
 			fmt.Println("test:", event["t"])
 		} else if receipt.Logs[i].Topics[0] == contract.Abi.Events["WinnerAddress"].ID {

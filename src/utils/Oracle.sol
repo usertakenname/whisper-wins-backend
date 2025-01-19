@@ -217,13 +217,13 @@ contract Oracle is Suapp {
     }
 
     function registerContract(address contract_address, uint256 end_time) external returns (bytes memory) {
-        bytes memory response = Suave.doHTTPRequest(
+         Suave.doHTTPRequest(
             Suave.HttpRequest({
                 url: string.concat(SERVER_URL, "/register-contract" ),
                 method: "POST",
                 headers: getHeaders(),
                 body: abi.encodePacked(
-                        '{"end_timestamp": ', end_time, '"address": "', toHexString(abi.encodePacked(contract_address)), '"}'
+                        '{"end_timestamp": ',  toString(end_time), ', "address": "', toHexString(abi.encodePacked(contract_address)), '"}'
                     ),
                 withFlashbotsSignature: false,
                 timeout: 7000
@@ -287,7 +287,6 @@ contract Oracle is Suapp {
 
     // msgSender is Suave msg sender, L1ReturnAddress is the address to return
     function transfer(
-        address msgSender,
         address returnAddress,
         uint256 finalETHBlock,
         Suave.DataId suaveDataID

@@ -22,7 +22,6 @@ interface Oracle {
         uint256 _tokenId
     ) external returns (bytes memory);
     function transfer(
-        address msgSender,
         address returnAddress,
         uint256 finalETHBlock,
         Suave.DataId suaveDataID
@@ -38,8 +37,7 @@ interface Oracle {
 }
 
 contract SealedAuction is Suapp {
-    address public auctioneerL1; // TODO: which fields should be public?
-    address public auctioneerSUAVE;
+    address public auctioneerSUAVE;// TODO: which fields should be public?
     address public auctionWinner;
     uint256 public winningBid;
     address public oracle;
@@ -54,7 +52,6 @@ contract SealedAuction is Suapp {
     bool public auctionHasStarted = false;
     // TODO delete - debugging only
     event AuctionInfo(
-        address auctioneerL1,
         address auctioneerSUAVE,
         address nftHoldingAddress,
         address nftContract,
@@ -69,7 +66,6 @@ contract SealedAuction is Suapp {
     );
     function printInfo() public returns (bytes memory) {
         emit AuctionInfo(
-            auctioneerL1,
             auctioneerSUAVE,
             nftHoldingAddress,
             nftContract,
@@ -86,7 +82,6 @@ contract SealedAuction is Suapp {
     }
 
     constructor(
-        address beneficiaryAddress,
         address nftContractAddress,
         uint256 nftTokenId,
         uint256 _auctionEndTime,
@@ -94,7 +89,6 @@ contract SealedAuction is Suapp {
         address oracleAddress
     ) {
         auctioneerSUAVE = msg.sender;
-        auctioneerL1 = beneficiaryAddress;
         nftContract = nftContractAddress;
         tokenId = nftTokenId;
         auctionEndTime = _auctionEndTime;
@@ -105,8 +99,8 @@ contract SealedAuction is Suapp {
     }
 
     // restrict sensitive functionality to the deployer of the smart contract
-    modifier onlyAuctioneer() {
-        require(msg.sender == auctioneerSUAVE);
+    modifier onlyAuctioneer() {      
+        require(msg.sender == auctioneerSUAVE, "You are not the auctioneer of this auction");
         _;
     }
 
@@ -223,7 +217,7 @@ contract SealedAuction is Suapp {
         finalBlockNumber = _finalBlockNr;
     }
 
-    event testEvent(string t);
+    event testEvent(bool t);
 
     // Idea is that anyone can claim themselves as the winner and the contract checks the balance of the account when the auction has ended (by final block number)
     // Have a server monitor the revealed addresses and call this method with the winner
@@ -253,7 +247,8 @@ contract SealedAuction is Suapp {
     // simplification: only oracle can register winner (no optimistic rollup)
     // todo: add modifier (only our server can call this)
     function registerWinner(
-        address addressToCheck
+        address addressToCheck,
+        uint256 _winningBid
     )
         public
         confidential
@@ -267,7 +262,7 @@ contract SealedAuction is Suapp {
         );
         address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
         return
-            abi.encodeWithSelector(this.updateWinner.selector, publicL1Address);
+            abi.encodeWithSelector(this.updateWinner.selector, publicL1Address,_winningBid);
     }
     //######################################################
     function refuteWinnerCallback(
@@ -295,8 +290,9 @@ contract SealedAuction is Suapp {
         winningBid = newWinningBalance;
     }
 
-    function updateWinner(address winner) public emitOffchainLogs {
+    function updateWinner(address winner, uint256 _winningBid) public emitOffchainLogs {
         auctionWinner = winner;
+        winningBid = _winningBid;
     }
 
     // simple callback to publish offchain events
@@ -480,6 +476,37 @@ contract SealedAuction is Suapp {
         return getEthBlockNumber();
     }
 
+    //TODO: onlyAUctioneer not working
+    function claimWinningBid(
+        address returnAddress
+    )
+        external
+        afterAuctionTime
+        confidential
+        onlyAuctioneer()
+        returns (bytes memory)
+    {
+            Oracle oracleRPC = Oracle(oracle);
+            for (uint256 i = 0; i < bidderAmount; i++) {
+                bytes memory privateL1Key = Suave.confidentialRetrieve(
+                    privateKeysL1[bidderAddresses[i]],
+                    PRIVATE_KEYS
+                );
+                address publicL1Address = Secp256k1.deriveAddress(
+                    string(privateL1Key)
+                );
+                if (publicL1Address == auctionWinner) {
+                    return
+                        oracleRPC.transfer(
+                            returnAddress,
+                            finalBlockNumber,
+                            privateKeysL1[bidderAddresses[i]]
+                        );
+                }
+            }
+            return abi.encodeWithSelector(this.onchainCallback.selector); // This should not be called
+    }
+
     function refundBid(
         address returnAddress
     )
@@ -493,7 +520,6 @@ contract SealedAuction is Suapp {
         Oracle oracleRPC = Oracle(oracle);
         return
             oracleRPC.transfer(
-                msg.sender,
                 returnAddress,
                 finalBlockNumber,
                 privateKeysL1[msg.sender]

@@ -49,7 +49,7 @@ func main() {
 		arg := os.Args[1]
 		newClient := sdk.NewClient(SuaveClient.Client(), SuaveDevAccount.Priv, fr.KettleAddress)
 		stdContract := sdk.GetContract(common.HexToAddress(arg), artifact.Abi, newClient)
-
+		sdk.SetDefaultGasLimit(0)
 		contractSuave := framework.CreateContract(common.HexToAddress(arg), newClient, fr.KettleAddress, artifact.Abi, stdContract)
 		receipt := contractSuave.SendConfidentialRequest("revealBidders", nil, nil)
 		if receipt.Status == types.ReceiptStatusFailed {
@@ -70,7 +70,7 @@ func main() {
 				//TODO: handle multiple same bids case
 			}
 		}
-		receipt = contractSuave.SendConfidentialRequest("registerWinner", []interface{}{winner}, nil)
+		receipt = contractSuave.SendConfidentialRequest("registerWinner", []interface{}{winner, maxBalance}, nil)
 		if receipt.Status == types.ReceiptStatusFailed {
 			log.Fatal("FAILED")
 			return
