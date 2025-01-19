@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/big"
+	"net/http"
 	"os"
+	"strconv"
 	"suave/whisperwins/framework"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -30,7 +35,7 @@ func init() {
 	err = godotenv.Load()
 	checkErrorWithMessage(err, "Error loading .env file: ")
 
-	privKeySuave := os.Getenv("SUAVE_DEV_PRIVATE_KEY")
+	privKeySuave := os.Getenv("SERVER_PRIVATE_KEY")
 	if privKeySuave == "" {
 		log.Fatal("ENTER PRIVATE Suave KEY in .env file!")
 	}
@@ -57,16 +62,17 @@ func main() {
 		}
 		maxBalance := big.NewInt(0)
 		winner := common.HexToAddress("0x0")
-
+		finalBlockNumber := getFieldFromContract(contractSuave, "finalBlockNumber")[0].(*big.Int).Uint64()
 		for i := 0; i < len(receipt.Logs); i++ {
 			event, err := contractSuave.Abi.Events["RevealBiddingAddress"].ParseLog(receipt.Logs[i])
 			checkError(err)
-			balance, err := L1client.BalanceAt(context.Background(), event["bidderL1"].(common.Address), nil)
+			//balance, err := L1client.BalanceAt(context.Background(), event["bidderL1"].(common.Address), nil)
+			balance := getBalanceAtBlock(event["bidderL1"].(common.Address), finalBlockNumber)
 			checkError(err)
-			if balance.CmpAbs(maxBalance) == 1 {
-				maxBalance = balance
+			if balance > maxBalance.Int64() {
+				maxBalance = big.NewInt(balance)
 				winner = event["bidderSuave"].(common.Address)
-			} else if balance.CmpAbs(maxBalance) == 0 {
+			} else if balance == maxBalance.Int64() {
 				//TODO: handle multiple same bids case
 			}
 		}
@@ -98,4 +104,38 @@ func checkErrorWithMessage(err error, mes string) {
 	if err != nil {
 		log.Fatal(mes, err)
 	}
+}
+
+func getBalanceAtBlock(
+	l1Address common.Address,
+	finalETHBlock uint64) int64 {
+	url := "http://127.0.0.1:8555/"
+	chainID, err := L1client.ChainID(context.Background())
+	checkError(err)
+	payload := []byte(fmt.Sprintf(`{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["%s", [], "0x%x"], "id": "%d"}`, l1Address, finalETHBlock, chainID.Int64()))
+	// Make the POST request
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+	checkError(err)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	checkError(err)
+	var jsonResult map[string]interface{}
+
+	err = json.Unmarshal([]byte(body), &jsonResult)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	result, ok := jsonResult["result"].(map[string]interface{})
+	if !ok {
+		log.Fatal("Key 'result' is not a valid map")
+	}
+
+	balance, ok := result["balance"].(string)
+	if !ok {
+		log.Fatal("Key 'balance' is not a string")
+	}
+
+	res, err := strconv.ParseInt(balance, 0, 64)
+	return res
 }

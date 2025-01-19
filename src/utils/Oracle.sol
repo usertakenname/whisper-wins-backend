@@ -177,7 +177,7 @@ contract Oracle is Suapp {
             toString(chainID),
             '"}'
         );
-        bytes memory response = makePostRPCCall(_body);
+        bytes memory response = makePostRPCCallTest(_body); // TODO: remove
         uint256 blockNumber = JSONParserLib.parseUintFromHex(
             trimQuotes(JSONParserLib.value(getJSONField(response, "result")))
         );

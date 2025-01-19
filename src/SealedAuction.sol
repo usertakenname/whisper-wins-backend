@@ -61,8 +61,7 @@ contract SealedAuction is Suapp {
         bool auctionHasStarted,
         address winner,
         uint256 finalBlockNumber,
-        uint256 winningBid,
-        uint256 ethBlockNumber
+        uint256 winningBid
     );
     function printInfo() public returns (bytes memory) {
         emit AuctionInfo(
@@ -75,8 +74,7 @@ contract SealedAuction is Suapp {
             auctionHasStarted,
             auctionWinner,
             finalBlockNumber,
-            winningBid,
-            finalBlockNumber
+            winningBid
         );
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
@@ -217,7 +215,7 @@ contract SealedAuction is Suapp {
         finalBlockNumber = _finalBlockNr;
     }
 
-    event testEvent(bool t);
+    event testEvent(string t);
 
     // Idea is that anyone can claim themselves as the winner and the contract checks the balance of the account when the auction has ended (by final block number)
     // Have a server monitor the revealed addresses and call this method with the winner
@@ -246,6 +244,7 @@ contract SealedAuction is Suapp {
     //######################################################
     // simplification: only oracle can register winner (no optimistic rollup)
     // todo: add modifier (only our server can call this)
+    // addressToCheck is L1 address
     function registerWinner(
         address addressToCheck,
         uint256 _winningBid
@@ -377,7 +376,15 @@ contract SealedAuction is Suapp {
     modifier addressHasBid(address owner) {
         require(
             _addressHasBid[owner],
-            "No bidding address related to this sender."
+            string.concat("No bidding address related to this sender:", toHexString(abi.encodePacked(owner)))
+        );
+        _;
+    }
+        modifier senderHasBid {
+            emit testEvent(toHexString(abi.encodePacked(msg.sender)));
+        require(
+            _addressHasBid[msg.sender],
+            string.concat("No bidding address related to msg.sender:", toHexString(abi.encodePacked(msg.sender)))
         );
         _;
     }
@@ -507,25 +514,30 @@ contract SealedAuction is Suapp {
             return abi.encodeWithSelector(this.onchainCallback.selector); // This should not be called
     }
 
+
     function refundBid(
         address returnAddress
     )
         external
         afterAuctionTime
-        addressHasBid(msg.sender)
+        senderHasBid
         confidential
         notWinner(msg.sender)
         returns (bytes memory)
     {
-        Oracle oracleRPC = Oracle(oracle);
+         Oracle oracleRPC = Oracle(oracle);
         return
             oracleRPC.transfer(
                 returnAddress,
                 finalBlockNumber,
                 privateKeysL1[msg.sender]
-            );
+            ); 
+           // return abi.encodeWithSelector(this.onchainCallback.selector); // This should not be called
+    } 
+    function toTest() public returns (bytes memory){
+        //emit testEvent(toHexString(abi.encodePacked(msg.sender)));
+         return abi.encodeWithSelector(this.onchainCallback.selector); // This should not be called
     }
-
     
     function refundNFT() auctionStarted internal {
         // TODO transfer back to auctioneerL1

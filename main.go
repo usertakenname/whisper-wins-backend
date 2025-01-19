@@ -85,7 +85,6 @@ func printContractInfo(contract *framework.Contract) {
 		fmt.Println("Final Block:", event["finalBlockNumber"])
 		fmt.Println("Auction Winner:", event["winner"])
 		fmt.Println("Winning Bid:", event["winningBid"])
-		fmt.Println("ETH Block Number:", event["ethBlockNumber"])
 	}
 
 }
@@ -432,9 +431,7 @@ func main() {
 	nftTokenID, minimalBiddingAmount := big.NewInt(420), big.NewInt(1000000000)
 	nftContractAddress := L1DevAccount.Address()
 	contract := deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracle.Raw().Address()) // TODO: rpc handling in constructor does not work
-	time.AfterFunc(time.Duration(auctionInSeconds)*time.Second, func() {
-		fmt.Println("Auction ended!")
-	})
+
 	getFieldFromContract(contract, "auctionHasStarted")
 
 	fmt.Println("3. Print Contract Info")
@@ -479,10 +476,9 @@ func main() {
 	   	receipt = contract.SendConfidentialRequest("refuteWinner", []interface{}{bidders[1].Address()}, nil)
 	   	printReceipt(receipt, contract, oracle) */
 
-	fmt.Println("8. Print Contract Info final")
-	sdk.SetDefaultGasLimit(3000000)
-	printContractInfo(contract)
-	sdk.SetDefaultGasLimit(0)
+	/* 	fmt.Println("8. Print Contract Info final")
+	   	printContractInfo(contract) */
+	sdk.SetDefaultGasLimit(10000000)
 
 	fmt.Println("9. Return funds")
 	for i := 0; i < num_accounts; i++ {
@@ -495,7 +491,13 @@ func main() {
 		fmt.Println("BEFORE Refund bid: ", biddedAddresses[i], " has balance of ", balance)
 		bidContract := contract.Ref(bidders[i])
 		fmt.Println("Get funds back for Suave Address:", bidders[i].Address())
-		_ = bidContract.SendConfidentialRequest("refundBid", []interface{}{bidders[i].Address()}, nil)
+		//contract2 := framework.CreateContract(contract.Raw().Address(),nil,contr)
+		/* 		getFieldFromContract(bidContract, "auctioneerSUAVE")
+		   		fmt.Println("CAlling with :", SuaveDevAccount.Address()) */
+
+		receipt = bidContract.SendConfidentialRequest("refundBid", []interface{}{bidders[i].Address()}, nil)
+		//receipt = contract.SendConfidentialRequest("toTest", nil, nil)
+		printReceipt(receipt, contract, oracle)
 		balance, err = L1client.BalanceAt(context.Background(), biddedAddresses[i], nil)
 		checkError(err)
 		fmt.Println("AFTER Refund bid: ", biddedAddresses[i], " has balance of ", balance)
@@ -508,7 +510,6 @@ func main() {
 	checkError(err)
 	fmt.Println("BEFORE returning the winning bid (Auctioneer Address): ", SuaveDevAccount.Address(), " has balance of ", balance)
 	getFieldFromContract(contract, "auctioneerSUAVE")
-	fmt.Println("CAlling with :", SuaveDevAccount.Address())
 	contract = contract.Ref(SuaveDevAccount)
 	receipt = contract.SendConfidentialRequest("claimWinningBid", []interface{}{SuaveDevAccount.Address()}, nil)
 	printReceipt(receipt, contract, oracle)
