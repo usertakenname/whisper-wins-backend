@@ -5,3 +5,5 @@ myDatadir/geth
 .vscode/*
 */__pycache__/*
 .env
+go.mod
+go.sum

@@ -31,6 +31,10 @@ interface Oracle {
         address l1Address,
         uint256 finalETHBlock
     ) external returns (bytes memory);
+    function registerContract(
+        address contract_address,
+        uint256 end_time
+    ) external returns (bytes memory);
 }
 
 contract SealedAuction is Suapp {
@@ -342,17 +346,17 @@ contract SealedAuction is Suapp {
 
     function confirmNFTowner(
         address NFTowner
-    ) external view onlyOracle returns (bytes memory) {
+    ) external onlyOracle returns (bytes memory) {
         require(
             NFTowner == nftHoldingAddress,
             "The NFT was not transferred yet"
         );
-        return registerContractToServer();
+        return registerContractAtServer();
     }
 
-    function registerContractToServer() public view returns (bytes memory) {
+    function registerContractAtServer() public returns (bytes memory) {
         Oracle oracleRPC = Oracle(oracle);
-        return oracleRPC.registerContractToServer(address(this), auctionEndTime);
+        return oracleRPC.registerContract(address(this), auctionEndTime);
     }
 
     function finaliseStartAuction() external view onlyOracle returns (bytes memory) {
@@ -497,7 +501,7 @@ contract SealedAuction is Suapp {
     }
 
     
-    function refundNFT() internal auctionHasStarted  {
+    function refundNFT() auctionStarted internal {
         // TODO transfer back to auctioneerL1
     }
 

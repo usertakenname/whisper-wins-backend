@@ -71,7 +71,7 @@ suave-geth spell conf-request [--confidential-input <input-data>] <contract-addr
 To deploy and interact with a SealedAuction, simply copy the following terminal commands:
 
 1. Start the python server: `python3 server/server.py`
-2. Start local chain: `suave-geth --suave.dev --suave.eth.external-whitelist='*'`
+2. Start a local chain: `suave-geth --suave.dev --suave.eth.external-whitelist='*'`
 3. Compile the contracts: `forge build`
 4. Deploy the contract: `suave-geth spell deploy SealedAuction.sol:SealedAuction` <br/> (<span style="color: red;">Important:</span> Scan the generated output for the address of the deployed contract and insert it in the next step)
 5. Get your L1-bidding address with: `suave-geth spell conf-request <contract-address> 'getBiddingAddress()'`

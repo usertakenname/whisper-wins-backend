@@ -18,6 +18,7 @@ interface SealedAuction {
         address checkedAddress,
         uint256 balance
     ) external returns (bytes memory);
+    function finaliseStartAuction() external view returns (bytes memory);
 }
 
 contract Oracle is Suapp {
@@ -215,8 +216,8 @@ contract Oracle is Suapp {
         return sealedAuction.confirmNFTowner(NFTowner);
     }
 
-    function registerContractToServer(address contract_address, uint256 end_time) external returns (bytes memory) {
-        response = Suave.doHTTPRequest(
+    function registerContract(address contract_address, uint256 end_time) external returns (bytes memory) {
+        bytes memory response = Suave.doHTTPRequest(
             Suave.HttpRequest({
                 url: string.concat(SERVER_URL, "/register-contract" ),
                 method: "POST",
