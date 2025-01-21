@@ -88,6 +88,8 @@ func printContractInfo(contract *framework.Contract) {
 		fmt.Println("Auction Winner L1:", event["auctionWinnerL1"])
 		fmt.Println("Auction Winner Suave:", event["auctionWinnerSuave"])
 		fmt.Println("Winning Bid:", event["winningBid"])
+		fmt.Println("Revealed addresses:", event["revealedL1Addresses"])
+
 	}
 
 }
@@ -416,7 +418,7 @@ var fr *framework.Framework
 
 var useLiveNet = false
 
-func main() {
+func main2() {
 	pause := false
 	if pause {
 		//mainWithPause()
@@ -494,22 +496,14 @@ func main() {
 	printContractInfo(contract)
 
 	fmt.Println("9. Return funds")
-	for i := 0; i < num_accounts; i++ {
-		if biddedAddresses[i] == winner {
-			fmt.Println("♛ The address: ", biddedAddresses[i], " won the auction and will not get their funds back ♛")
-			continue
-		}
-		balance, err := L1client.BalanceAt(context.Background(), biddedAddresses[i], nil)
-		checkError(err)
-		fmt.Println("BEFORE Refund bid: ", biddedAddresses[i], " has balance of ", balance)
-		bidContract := contract.Ref(bidders[i])
-		fmt.Println("Get funds back for Suave Address:", bidders[i].Address())
-		bidContract.SendConfidentialRequest("refundBid", []interface{}{bidders[i].Address()}, nil)
-		balance, err = L1client.BalanceAt(context.Background(), biddedAddresses[i], nil)
-		checkError(err)
-		fmt.Println("AFTER Refund bid: ", biddedAddresses[i], " has balance of ", balance)
-	}
+	returnFunds(biddedAddresses, winner, contract, bidders)
+
 	fmt.Println("10. Return winning bid to auctioneer")
+	returnWinningBid(winner, contract)
+
+}
+
+func returnWinningBid(winner common.Address, contract *framework.Contract) {
 	balance, err := L1client.BalanceAt(context.Background(), winner, nil)
 	checkError(err)
 	fmt.Println("BEFORE returning the winning bid (Winning Bid Address): ", winner, " has balance of ", balance)
@@ -527,6 +521,26 @@ func main() {
 	fmt.Println("AFTER returning the winning bid: (Auctioneer Address) ", SuaveDevAccount.Address(), " has balance of ", balance)
 }
 
+func returnFunds(biddedAddresses []common.Address, winnerL1 common.Address, contract *framework.Contract, bidders []*framework.PrivKey) {
+	sdk.SetDefaultGasLimit(3000000)
+	for i := 0; i < len(biddedAddresses); i++ {
+		if biddedAddresses[i] == winnerL1 {
+			fmt.Println("♛ The address: ", biddedAddresses[i], " won the auction and will not get their funds back ♛")
+			continue
+		}
+		balance, err := L1client.BalanceAt(context.Background(), biddedAddresses[i], nil)
+		checkError(err)
+		fmt.Println("BEFORE Refund bid: ", biddedAddresses[i], " has balance of ", balance)
+		bidContract := contract.Ref(bidders[i])
+		fmt.Println("Get funds back for Suave Address:", bidders[i].Address())
+		receipt := bidContract.SendConfidentialRequest("refundBid", []interface{}{bidders[i].Address()}, nil)
+		printReceipt(receipt, contract)
+		balance, err = L1client.BalanceAt(context.Background(), biddedAddresses[i], nil)
+		checkError(err)
+		fmt.Println("AFTER Refund bid: ", biddedAddresses[i], " has balance of ", balance)
+	}
+}
+
 func setUpAuction(contract *framework.Contract) {
 	receipt := contract.SendConfidentialRequest("setUpAuction", nil, nil)
 	printReceipt(receipt, contract)
@@ -535,10 +549,10 @@ func setUpAuction(contract *framework.Contract) {
 // TODO: remove; used  for testing only
 func printReceipt(receipt *types.Receipt, contract *framework.Contract) {
 	for i := 0; i < len(receipt.Logs); i++ {
-		if receipt.Logs[i].Topics[0] == contract.Abi.Events["testEvent2"].ID {
-			event, err := contract.Abi.Events["testEvent2"].ParseLog(receipt.Logs[i])
+		if receipt.Logs[i].Topics[0] == contract.Abi.Events["testEvent"].ID {
+			event, err := contract.Abi.Events["testEvent"].ParseLog(receipt.Logs[i])
 			checkError(err)
-			fmt.Println("test:", event["t"])
+			fmt.Println("test:", event["test"])
 		} else if receipt.Logs[i].Topics[0] == contract.Abi.Events["WinnerAddress"].ID {
 			event, err := contract.Abi.Events["WinnerAddress"].ParseLog(receipt.Logs[i])
 			checkError(err)
@@ -551,11 +565,6 @@ func printReceipt(receipt *types.Receipt, contract *framework.Contract) {
 			event, err := contract.Abi.Events["ErrorEvent"].ParseLog(receipt.Logs[i])
 			checkError(err)
 			fmt.Println("Error : ", event["error"])
-		} else if receipt.Logs[i].Topics[0] == contract.Abi.Events["testEvent"].ID {
-			event, err := contract.Abi.Events["testEvent"].ParseLog(receipt.Logs[i])
-			checkError(err)
-			fmt.Println("encrypted string : ", event["t"])
-			fmt.Println("encrypted byttes : ", event["b"])
 		}
 	}
 }
@@ -620,4 +629,83 @@ func aesDecrypt(key []byte, ciphertext []byte) ([]byte, error) {
 	}
 
 	return plaintext, nil
+}
+
+func main() {
+	fmt.Println("USING THE EASY AUCTION RESOLVING")
+	fmt.Println("0. Setup: Deploy Oracle")
+	chainIDL1 := big.NewInt(LOCAL_TESTCHAIN_ID)
+	oracle := deployContractWithConstructor("Oracle.sol/Oracle.json", SuaveDevAccount, chainIDL1)
+	api_key := os.Getenv("ALCHEMY_API_KEY")
+	if api_key == "" {
+		log.Fatal("ENTER PRIVATE Suave KEY in .env file!")
+	}
+	receipt := oracle.SendConfidentialRequest("registerApiKeyOffchain", nil, []byte(api_key))
+	if receipt.Status == types.ReceiptStatusSuccessful {
+		fmt.Println("API Key registered")
+	}
+	path = "SealedAuctionEasy.sol/SealedAuctionEasy.json"
+	fmt.Println("1. Deploy Easy Sealed Auction contract")
+	//TODO: adapt inputs to something interesting (not yet used)
+	auctionInSeconds := int64(10)
+	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
+	nftTokenID, minimalBiddingAmount := big.NewInt(420), big.NewInt(1000000000)
+	nftContractAddress := L1DevAccount.Address()
+	contract := deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracle.Raw().Address()) // TODO: rpc handling in constructor does not work
+
+	getFieldFromContract(contract, "auctionHasStarted")
+
+	fmt.Println("3. Print Contract Info")
+	printContractInfo(contract)
+
+	fmt.Println("4. Print Suave Chain Info")
+	printSuaveChainInfoComplete()
+
+	fmt.Println("4. Print L1 Chain Info")
+	printL1ChainInfoComplete()
+
+	fmt.Println("4.1 Setup Auction")
+	setUpAuction(contract)
+
+	fmt.Println("4.5. Start Auction")
+	//startAuction(contract) //TODO: replace for this in final product
+	startAuction(contract)
+
+	fmt.Println("5. Create new account & bid")
+	num_accounts := 2 // adapt accounts to be created here
+	bidders := make([]*framework.PrivKey, 0)
+	for i := 0; i < num_accounts; i++ {
+		fmt.Println("Creating account #", i)
+		bidders = append(bidders, createAccount()) // appends newly created account (has funds on Suave and L1)
+		bidContract := contract.Ref(bidders[i])
+		placeBid(bidders[i], bidContract)
+	}
+
+	fmt.Println("6. Waiting for the auction to end...")
+	time.Sleep(time.Duration(auctionInSeconds) * time.Second) //TODO: fix timing here as block.timestamp is unreliable
+	fmt.Println("End auction now")
+	fmt.Println("Current time: ", time.Now().Unix())
+	getFieldFromContract(contract, "auctionEndTime")
+	sdk.SetDefaultGasLimit(uint64(0))
+
+	receipt = contract.SendConfidentialRequest("endAuction", nil, nil)
+	if receipt.Status == types.ReceiptStatusFailed {
+		panic("Revealing Bidders tx Failed")
+	}
+	fmt.Println("Number of bidders: ", len(receipt.Logs))
+	event, err := contract.Abi.Events["RevealBiddingAddress"].ParseLog(receipt.Logs[0])
+	checkError(err)
+	fmt.Println("Revealed L1 address:\n", event["bidderL1"])
+	winnerL1 := getFieldFromContract(contract, "auctionWinnerL1")[0].(common.Address)
+
+	sdk.SetDefaultGasLimit(uint64(300000))
+
+	fmt.Println("7. Print Contract Info")
+	printContractInfo(contract)
+
+	fmt.Println("8. Return funds")
+	returnFunds(event["bidderL1"].([]common.Address), winnerL1, contract, bidders)
+
+	fmt.Println("9. Return winning bid to auctioneer")
+	returnWinningBid(winnerL1, contract)
 }

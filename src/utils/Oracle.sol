@@ -21,15 +21,19 @@ interface SealedAuction {
     function finaliseStartAuction() external view returns (bytes memory);
 }
 
+interface SealedAuctionEasy {
+    function endAuctionCallback(address _winner, uint256 _winningBid,address[] memory _l1Addresses) external returns (bytes memory);
+}
+
 contract Oracle is Suapp {
     address public owner;
     uint256 public chainID;
     Suave.DataId rpcEndpoint;
     string RPC = "RPC";
-    string public SERVER_URL = "http://localhost:8001";
-    string public BASE_API_URL = "http://localhost:8555"; // TODO: remove
+    string SERVER_URL = "http://localhost:8001";
+    string BASE_API_URL = "http://localhost:8555"; // TODO: remove
     string public BASE_ALCHEMY_URL = "https://eth-sepolia.g.alchemy.com/v2/";
-    string public PRIVATE_KEYS = "KEY";
+    string PRIVATE_KEYS = "KEY";
 
     constructor(uint256 _chainID) {
         owner = msg.sender;
@@ -216,15 +220,22 @@ contract Oracle is Suapp {
         return sealedAuction.confirmNFTowner(NFTowner);
     }
 
-    function registerContract(address contract_address, uint256 end_time) external returns (bytes memory) {
-         Suave.doHTTPRequest(
+    function registerContract(
+        address contract_address,
+        uint256 end_time
+    ) external returns (bytes memory) {
+        Suave.doHTTPRequest(
             Suave.HttpRequest({
-                url: string.concat(SERVER_URL, "/register-contract" ),
+                url: string.concat(SERVER_URL, "/register-contract"),
                 method: "POST",
                 headers: getHeaders(),
                 body: abi.encodePacked(
-                        '{"end_timestamp": ',  toString(end_time), ', "address": "', toHexString(abi.encodePacked(contract_address)), '"}'
-                    ),
+                    '{"end_timestamp": ',
+                    toString(end_time),
+                    ', "address": "',
+                    toHexString(abi.encodePacked(contract_address)),
+                    '"}'
+                ),
                 withFlashbotsSignature: false,
                 timeout: 7000
             })
@@ -256,7 +267,74 @@ contract Oracle is Suapp {
         return sealedAuction.refuteWinnerCallback(l1Address, balance);
     }
 
-    event testEvent(string t);
+    function endAuctionEasy(
+        address[] memory l1Addresses
+    ) external confidential returns (bytes memory) {
+        uint256 currentMaxBid = 0;
+        address currentMaxBidder = address(0);
+        for (uint256 index = 0; index < l1Addresses.length; index++) {
+            uint256 balance = getBalance(l1Addresses[index]);
+            if (balance > currentMaxBid) {
+                currentMaxBid = balance;
+                currentMaxBidder = l1Addresses[index];
+            }
+        }
+        SealedAuctionEasy sealedAuction = SealedAuctionEasy(msg.sender);
+        return sealedAuction.endAuctionCallback(currentMaxBidder, currentMaxBid,l1Addresses);
+    }
+
+    event testEvent(string test);
+
+    function getBalance(
+        address l1Address
+    ) internal confidential returns (uint256 balance) {
+        bytes memory _body = abi.encodePacked(
+            '{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["',
+            toHexString(abi.encodePacked(l1Address)),
+            '",[],"',
+            "latest",
+            '"], "id": "',
+            toString(chainID),
+            '"}'
+        );
+        bytes memory response = makePostRPCCallTest(_body); // TODO: change to real method
+        balance = JSONParserLib.parseUintFromHex(
+            stripQuotes(
+                JSONParserLib.value(
+                    JSONParserLib.at(
+                        getJSONField(response, "result"),
+                        '"balance"'
+                    )
+                )
+            )
+        );
+    }
+
+     function transferEasy(
+        address returnAddress,
+        Suave.DataId suaveDataID
+    ) external returns (bytes memory) {
+        bytes memory privateL1Key = Suave.confidentialRetrieve(
+            suaveDataID,
+            PRIVATE_KEYS
+        );
+        emit testEvent(string(privateL1Key));
+        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
+       uint256 gasPrice = getGasPrice() * 2;
+        uint256 value = getBalance(publicL1Address);
+        if (value >= 21000 * gasPrice) {
+             makeTransaction(
+                returnAddress,
+                gasPrice,
+                value - (21000 * gasPrice),
+                "",
+                suaveDataID
+            ); 
+        } else {
+            emit FundsTooLessToPayout(publicL1Address);
+        }
+        return abi.encodeWithSelector(this.onchainCallback.selector);
+    }
 
     function getBalanceAtBlock(
         address l1Address,
@@ -266,7 +344,7 @@ contract Oracle is Suapp {
             '{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["',
             toHexString(abi.encodePacked(l1Address)),
             '",[],"',
-            //LibString.toMinimalHexString(finalETHBlock), // change to this
+            //LibString.toMinimalHexString(finalETHBlock), //TODO change to this
             "latest",
             '"], "id": "',
             toString(chainID),
