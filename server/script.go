@@ -61,7 +61,7 @@ func main() {
 			panic("Revealing Bidders tx Failed")
 		}
 		maxBalance := big.NewInt(0)
-		winner := common.HexToAddress("0x0")
+		winnerL1 := common.HexToAddress("0x0")
 		finalBlockNumber := getFieldFromContract(contractSuave, "finalBlockNumber")[0].(*big.Int).Uint64()
 		for i := 0; i < len(receipt.Logs); i++ {
 			event, err := contractSuave.Abi.Events["RevealBiddingAddress"].ParseLog(receipt.Logs[i])
@@ -71,18 +71,19 @@ func main() {
 			checkError(err)
 			if balance > maxBalance.Int64() {
 				maxBalance = big.NewInt(balance)
-				winner = event["bidderSuave"].(common.Address)
+				winnerL1 = event["bidderL1"].(common.Address)
 			} else if balance == maxBalance.Int64() {
 				//TODO: handle multiple same bids case
 			}
 		}
-		receipt = contractSuave.SendConfidentialRequest("registerWinner", []interface{}{winner, maxBalance}, nil)
+		// TODO: we can send the L1 address and compute the according SuaveAddress in the contract (now we send the suave address! CHANGE!)
+		receipt = contractSuave.SendConfidentialRequest("registerWinner", []interface{}{winnerL1, maxBalance}, nil)
 		if receipt.Status == types.ReceiptStatusFailed {
 			log.Fatal("FAILED")
 			return
 		}
 		//Print winner to stdout
-		fmt.Print(getFieldFromContract(contractSuave, "auctionWinner"))
+		fmt.Print(getFieldFromContract(contractSuave, "auctionWinnerL1"))
 	} else {
 		log.Fatal("No arguments provided")
 	}

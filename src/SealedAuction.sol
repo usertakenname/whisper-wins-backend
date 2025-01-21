@@ -38,11 +38,12 @@ interface Oracle {
 
 contract SealedAuction is Suapp {
     address public auctioneerSUAVE;// TODO: which fields should be public?
-    address public auctionWinner;
+    address public auctionWinnerL1;
+    address public auctionWinnerSuave;
     uint256 public winningBid;
     address public oracle;
-    address nftHoldingAddress =
-        address(0x929e17E4B2085130a415C5f69Cfb1Fbef163bDAd);
+    address nftHoldingAddress;
+        //address(0x929e17E4B2085130a415C5f69Cfb1Fbef163bDAd); //test Address
     // address(0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D); TODO: change to this
     address public nftContract;
     uint256 public tokenId;
@@ -59,7 +60,8 @@ contract SealedAuction is Suapp {
         uint256 auctionEndTime,
         uint256 minimalBid,
         bool auctionHasStarted,
-        address winner,
+        address auctionWinnerL1,
+        address auctionWinnerSuave,
         uint256 finalBlockNumber,
         uint256 winningBid
     );
@@ -72,7 +74,8 @@ contract SealedAuction is Suapp {
             auctionEndTime,
             minimalBid,
             auctionHasStarted,
-            auctionWinner,
+            auctionWinnerL1,
+            auctionWinnerSuave,
             finalBlockNumber,
             winningBid
         );
@@ -92,7 +95,8 @@ contract SealedAuction is Suapp {
         auctionEndTime = _auctionEndTime;
         minimalBid = minimalBiddingAmount;
         winningBid = 0;
-        auctionWinner = address(0);
+        auctionWinnerL1 = address(0);
+        auctionWinnerSuave = address(0);
         oracle = oracleAddress;
     }
 
@@ -163,35 +167,37 @@ contract SealedAuction is Suapp {
     }
 
     modifier winnerRegistered() {
-        require(auctionWinner != address(0));
+        require(auctionWinnerL1 != address(0));
+        require(auctionWinnerSuave != address(0));
         _;
     }
 
-    modifier notWinner(address checkAddress) {
+    modifier notWinnerSuave() {
         require(
-            !checkIsWinner(checkAddress),
+            !checkIsWinner(msg.sender),
             "You can not refund your Bid as you are the winner of the auction"
         );
         _;
     }
 
-    modifier isWinner(address checkAddress) {
+    modifier isWinnerSuave() {
         require(
-            checkIsWinner(checkAddress),
+            checkIsWinner(msg.sender),
             "You are the winner of the auction and can therefore not do this action"
         );
         _;
     }
 
     function checkIsWinner(
-        address checkAddress
-    ) internal addressHasBid(checkAddress) winnerRegistered returns (bool) {
-        bytes memory privateL1Key = Suave.confidentialRetrieve(
+        address checkSuaveAddress
+    ) internal addressHasBid(checkSuaveAddress) winnerRegistered returns (bool) {
+/*         bytes memory privateL1Key = Suave.confidentialRetrieve(
             privateKeysL1[checkAddress],
             PRIVATE_KEYS
         );
         address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
-        return publicL1Address == auctionWinner;
+        return publicL1Address == auctionWinnerL1; */
+        return checkSuaveAddress == auctionWinnerSuave;
     }
 
     function getEthBlockNumber() private returns (bytes memory) {
@@ -215,7 +221,42 @@ contract SealedAuction is Suapp {
         finalBlockNumber = _finalBlockNr;
     }
 
-    event testEvent(string t);
+    event testEvent(string inString ,bytes inBytes);
+
+    function setUpAuction() public confidential onlyAuctioneer  returns (bytes memory){
+        if (nftHoldingAddress == address(0)){
+             string memory privateKey = Suave.privateKeyGen(
+                Suave.CryptoSignature.SECP256
+            );
+            bytes memory keyData = bytes(privateKey);
+
+            address[] memory peekers = new address[](2);
+            peekers[0] = address(this);
+            peekers[1] = oracle; // oracle can also see private keys
+            Suave.DataRecord memory record = Suave.newDataRecord(
+                0,
+                peekers,
+                peekers,
+                PRIVATE_KEYS
+            );
+            Suave.confidentialStore(record.id, PRIVATE_KEYS, keyData);
+            address _nftHoldingAddress = Secp256k1.deriveAddress(privateKey);
+            emit NFTHoldingAddressEvent(_nftHoldingAddress);
+            return
+                abi.encodeWithSelector(
+                    this.createNFTaddressCallback.selector,
+                    _nftHoldingAddress,
+                    record.id
+                );
+        }
+        emit NFTHoldingAddressEvent(nftHoldingAddress);
+        return abi.encodeWithSelector(this.onchainCallback.selector);
+    }
+
+    function createNFTaddressCallback(address _nftHoldingAddress, Suave.DataId keyRecord) public {
+        nftHoldingAddress = _nftHoldingAddress;
+        privateKeysL1[address(this)] = keyRecord; // The lookup address for the NFT key holding address is the auction contracts address
+    }
 
     // Idea is that anyone can claim themselves as the winner and the contract checks the balance of the account when the auction has ended (by final block number)
     // Have a server monitor the revealed addresses and call this method with the winner
@@ -243,26 +284,36 @@ contract SealedAuction is Suapp {
 
     //######################################################
     // simplification: only oracle can register winner (no optimistic rollup)
-    // todo: add modifier (only our server can call this)
-    // addressToCheck is L1 address
+    // todo: anyone can call this and we trust it?
+    // addressToCheck is L1 Address
     function registerWinner(
-        address addressToCheck,
+        address addressToCheckL1,
         uint256 _winningBid
     )
         public
         confidential
-        addressHasBid(addressToCheck)
         afterAuctionTime
+        auctionStarted
         returns (bytes memory)
     {
-        bytes memory privateL1Key = Suave.confidentialRetrieve(
-            privateKeysL1[addressToCheck],
-            PRIVATE_KEYS
-        );
-        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
-        return
-            abi.encodeWithSelector(this.updateWinner.selector, publicL1Address,_winningBid);
+        for (uint256 i = 0; i < bidderAmount; i++) {
+            bytes memory privateL1Key = Suave.confidentialRetrieve(
+                privateKeysL1[bidderAddresses[i]],
+                PRIVATE_KEYS
+            );
+            address publicL1Address = Secp256k1.deriveAddress(
+                string(privateL1Key)
+            );
+            if(publicL1Address == addressToCheckL1){
+                        return
+            abi.encodeWithSelector(this.updateWinner.selector, publicL1Address,bidderAddresses[i],_winningBid);
+            }
+        }
+        emit ErrorEvent(string.concat("Something went wrong registering the winner ",toHexString(abi.encodePacked(addressToCheckL1))));
+        abi.encodeWithSelector(this.onchainCallback.selector);
     }
+
+    event ErrorEvent(string error);
     //######################################################
     function refuteWinnerCallback(
         address checkedAddress,
@@ -276,7 +327,7 @@ contract SealedAuction is Suapp {
                     balance
                 );
         }
-        emit WinnerAddress(auctionWinner);
+        emit WinnerAddress(auctionWinnerL1);
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
@@ -285,12 +336,13 @@ contract SealedAuction is Suapp {
         uint256 newWinningBalance
     ) public emitOffchainLogs {
         emit WinnerAddress(newWinner);
-        auctionWinner = newWinner;
+        auctionWinnerL1 = newWinner;
         winningBid = newWinningBalance;
     }
 
-    function updateWinner(address winner, uint256 _winningBid) public emitOffchainLogs {
-        auctionWinner = winner;
+    function updateWinner(address winnerL1,address winnerSuave, uint256 _winningBid) public emitOffchainLogs {
+        auctionWinnerL1 = winnerL1;
+        auctionWinnerSuave = winnerSuave;
         winningBid = _winningBid;
     }
 
@@ -319,9 +371,10 @@ contract SealedAuction is Suapp {
 
     //TODO: remove ; only for testing
     function startAuctionTest() public returns (bytes memory) {
-        return abi.encodeWithSelector(this.startAuctionCallback.selector);
+        return registerContractAtServer();
     }
 
+    // Why doesnt the frontend call our server with the cronjob?
     function startAuction()
         public
         onlyAuctioneer
@@ -330,13 +383,7 @@ contract SealedAuction is Suapp {
         returns (bytes memory)
     {
         Oracle oracleRPC = Oracle(oracle);
-        return
-            oracleRPC.getNFTOwnedBy(
-                address(0x1238536071E1c677A632429e3655c799b22cDA52),
-                44336
-            ); // static address for testing purposes
-        //TODO: change to this line:
-        //return oracleRPC.getNFTOwnedBy(nftContract, tokenId);
+        return oracleRPC.getNFTOwnedBy(nftContract, tokenId);
     }
 
     function confirmNFTowner(
@@ -359,9 +406,10 @@ contract SealedAuction is Suapp {
     }
 
     // BIDDING RELATED FUNCTIONALITY ---------------------------------------------------------------------------------------------------------------------------------
-    event RevealBiddingAddress(address bidderSuave, address bidderL1);
+    event RevealBiddingAddress(address bidderL1);
+    event NFTHoldingAddressEvent(address nftHoldingAddress);
     event WinnerAddress(address winner);
-    event EncBiddingAddress(address owner, string encryptedL1Address);
+    event EncBiddingAddress(address owner, bytes encryptedL1Address);
 
     string public PRIVATE_KEYS = "KEY";
 
@@ -381,7 +429,6 @@ contract SealedAuction is Suapp {
         _;
     }
         modifier senderHasBid {
-            emit testEvent(toHexString(abi.encodePacked(msg.sender)));
         require(
             _addressHasBid[msg.sender],
             string.concat("No bidding address related to msg.sender:", toHexString(abi.encodePacked(msg.sender)))
@@ -409,6 +456,7 @@ contract SealedAuction is Suapp {
 
     // emits the bidding address in a encrypted fashion, creates a new one if user has no bidding address so far
     function getBiddingAddress() public confidential returns (bytes memory) {
+        bytes memory randomKey = Context.confidentialInputs();
         if (_addressHasBid[msg.sender] == false) {
             string memory privateKey = Suave.privateKeyGen(
                 Suave.CryptoSignature.SECP256
@@ -427,11 +475,11 @@ contract SealedAuction is Suapp {
             Suave.confidentialStore(record.id, PRIVATE_KEYS, keyData);
 
             address publicL1Address = Secp256k1.deriveAddress(privateKey);
+            bytes memory encrypted = Suave.aesEncrypt(randomKey, abi.encodePacked(publicL1Address));
             emit EncBiddingAddress(
                 msg.sender,
-                toHexString(encryptForAddress(msg.sender, publicL1Address))
+                encrypted
             );
-
             return
                 abi.encodeWithSelector(
                     this.updatePrivateKeyCallback.selector,
@@ -446,9 +494,10 @@ contract SealedAuction is Suapp {
             address publicL1Address = Secp256k1.deriveAddress(
                 string(privateL1Key)
             );
+            bytes memory encrypted = Suave.aesEncrypt(randomKey, abi.encodePacked(publicL1Address));
             emit EncBiddingAddress(
                 msg.sender,
-                toHexString(encryptForAddress(msg.sender, publicL1Address))
+                encrypted
             );
 
             return abi.encodeWithSelector(this.onchainCallback.selector);
@@ -478,72 +527,61 @@ contract SealedAuction is Suapp {
             address publicL1Address = Secp256k1.deriveAddress(
                 string(privateL1Key)
             );
-            emit RevealBiddingAddress(bidderAddresses[i], publicL1Address);
+            emit RevealBiddingAddress(publicL1Address);
         }
+        if(finalBlockNumber != 0){ // revealBidders should not override finalBlock
+            return abi.encodeWithSelector(this.onchainCallback.selector);
+        } else  //TODO: test this
         return getEthBlockNumber();
     }
 
-    //TODO: onlyAUctioneer not working
+    //only the auctioneer can claim the winning bid
     function claimWinningBid(
-        address returnAddress
+        address returnAddressL1
     )
         external
         afterAuctionTime
         confidential
+        winnerRegistered()
         onlyAuctioneer()
         returns (bytes memory)
     {
             Oracle oracleRPC = Oracle(oracle);
-            for (uint256 i = 0; i < bidderAmount; i++) {
-                bytes memory privateL1Key = Suave.confidentialRetrieve(
-                    privateKeysL1[bidderAddresses[i]],
-                    PRIVATE_KEYS
-                );
-                address publicL1Address = Secp256k1.deriveAddress(
-                    string(privateL1Key)
-                );
-                if (publicL1Address == auctionWinner) {
-                    return
+            return
                         oracleRPC.transfer(
-                            returnAddress,
+                            returnAddressL1,
                             finalBlockNumber,
-                            privateKeysL1[bidderAddresses[i]]
+                            privateKeysL1[auctionWinnerSuave]
                         );
-                }
-            }
             return abi.encodeWithSelector(this.onchainCallback.selector); // This should not be called
     }
 
-
+    // msg.sender is suaveBidder and returnAddressL1 is on L1 chain
     function refundBid(
-        address returnAddress
+        address returnAddressL1
     )
         external
         afterAuctionTime
         senderHasBid
         confidential
-        notWinner(msg.sender)
+        notWinnerSuave()
         returns (bytes memory)
     {
          Oracle oracleRPC = Oracle(oracle);
         return
             oracleRPC.transfer(
-                returnAddress,
+                returnAddressL1,
                 finalBlockNumber,
                 privateKeysL1[msg.sender]
             ); 
            // return abi.encodeWithSelector(this.onchainCallback.selector); // This should not be called
     } 
-    function toTest() public returns (bytes memory){
-        //emit testEvent(toHexString(abi.encodePacked(msg.sender)));
-         return abi.encodeWithSelector(this.onchainCallback.selector); // This should not be called
-    }
     
     function refundNFT() auctionStarted internal {
         // TODO transfer back to auctioneerL1
     }
 
-    function transferNFT(address winner) isWinner(msg.sender) public {
+    function transferNFT(address winner) isWinnerSuave() public {
         // TODO transfer nft to winner from address of ingoing tx
         // TODO transfer funds in winner address to auctioneerL1
     }

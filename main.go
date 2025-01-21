@@ -1,14 +1,16 @@
 package main
 
 import (
-	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/big"
 	"math/rand"
-	"net/http"
+
 	"os"
 	"time"
 
@@ -83,7 +85,8 @@ func printContractInfo(contract *framework.Contract) {
 		fmt.Println("Minimal Bid:", event["minimalBid"])
 		fmt.Println("Auction Has Started:", event["auctionHasStarted"])
 		fmt.Println("Final Block:", event["finalBlockNumber"])
-		fmt.Println("Auction Winner:", event["winner"])
+		fmt.Println("Auction Winner L1:", event["auctionWinnerL1"])
+		fmt.Println("Auction Winner Suave:", event["auctionWinnerSuave"])
 		fmt.Println("Winning Bid:", event["winningBid"])
 	}
 
@@ -103,12 +106,15 @@ func registerRPC(contract *framework.Contract) {
 }
 
 func getBiddingAddress(contract *framework.Contract) string {
-	receipt := contract.SendConfidentialRequest("getBiddingAddress", nil, nil)
+	randomKey, err := GenerateRandomKey()
+	checkError(err)
+	receipt := contract.SendConfidentialRequest("getBiddingAddress", nil, randomKey)
 	event, err := contract.Abi.Events["EncBiddingAddress"].ParseLog(receipt.Logs[0])
 	checkError(err)
+	plainTextAddress := decryptSecretAddress(randomKey, event["encryptedL1Address"].([]byte))
 	fmt.Println("Owner of Bidding address:", event["owner"])
-	fmt.Println("Encrypted L1 address:", event["encryptedL1Address"])
-	return event["encryptedL1Address"].(string)
+	fmt.Println("Encrypted L1 address:", plainTextAddress)
+	return plainTextAddress
 }
 
 func createAccount() *framework.PrivKey {
@@ -224,6 +230,10 @@ func placeBid(privKey *framework.PrivKey, bidContract *framework.Contract) {
 	fmt.Println("Place bid with amount ", amount, " to adddress ", toAddress)
 	makeTransaction(privKey, amount, toAddress)
 	fmt.Println(privKey.Address(), " bid ", amount, " to ", toAddress)
+	balance, err := L1client.BalanceAt(context.Background(), toAddress, nil)
+	checkError(err)
+	fmt.Println(toAddress, " has ", balance)
+
 	/* // rlp encode tx not needed anymore?
 	 	// now RLP encode Tx and send to contract
 		encodedTx, err := rlp.EncodeToBytes(tx)
@@ -352,7 +362,7 @@ func revealBidders(contract *framework.Contract) []common.Address {
 		if receipt.Logs[i].Topics[0] == contract.Abi.Events["RevealBiddingAddress"].ID {
 			event, err := contract.Abi.Events["RevealBiddingAddress"].ParseLog(receipt.Logs[i])
 			checkError(err)
-			fmt.Println("Revealed L1 address:", event["bidderL1"], " & Suave Addresse: ", event["bidderSuave"])
+			fmt.Println("Revealed L1 address:", event["bidderL1"])
 			bidderList = append(bidderList, event["bidderL1"].(common.Address))
 		}
 	}
@@ -443,9 +453,12 @@ func main() {
 	fmt.Println("4. Print L1 Chain Info")
 	printL1ChainInfoComplete()
 
+	fmt.Println("4.1 Setup Auction")
+	setUpAuction(contract)
+
 	fmt.Println("4.5. Start Auction")
-	startAuction(contract)
-	//startAuctionTest(contract)
+	//startAuction(contract) //TODO: replace for this in final product
+	startAuctionTest(contract)
 	fmt.Println("5. Create new account & bid")
 	num_accounts := 2 // adapt accounts to be created here
 	bidders := make([]*framework.PrivKey, 0)
@@ -469,16 +482,16 @@ func main() {
 	getFieldFromContract(contract, "auctionEndTime")
 	biddedAddresses := revealBidders(contract) // need this to get the contracts but winner should have been determined
 
-	winner := getFieldFromContract(contract, "auctionWinner")[0].(common.Address)
+	winner := getFieldFromContract(contract, "auctionWinnerL1")[0].(common.Address)
 
 	/* 	fmt.Println("7. Refute winner")
 	   	fmt.Println("Claim as winner: ", bidders[1].Address())
 	   	receipt = contract.SendConfidentialRequest("refuteWinner", []interface{}{bidders[1].Address()}, nil)
 	   	printReceipt(receipt, contract, oracle) */
-
-	/* 	fmt.Println("8. Print Contract Info final")
-	   	printContractInfo(contract) */
 	sdk.SetDefaultGasLimit(10000000)
+
+	fmt.Println("8. Print Contract Info final")
+	printContractInfo(contract)
 
 	fmt.Println("9. Return funds")
 	for i := 0; i < num_accounts; i++ {
@@ -491,13 +504,7 @@ func main() {
 		fmt.Println("BEFORE Refund bid: ", biddedAddresses[i], " has balance of ", balance)
 		bidContract := contract.Ref(bidders[i])
 		fmt.Println("Get funds back for Suave Address:", bidders[i].Address())
-		//contract2 := framework.CreateContract(contract.Raw().Address(),nil,contr)
-		/* 		getFieldFromContract(bidContract, "auctioneerSUAVE")
-		   		fmt.Println("CAlling with :", SuaveDevAccount.Address()) */
-
-		receipt = bidContract.SendConfidentialRequest("refundBid", []interface{}{bidders[i].Address()}, nil)
-		//receipt = contract.SendConfidentialRequest("toTest", nil, nil)
-		printReceipt(receipt, contract, oracle)
+		bidContract.SendConfidentialRequest("refundBid", []interface{}{bidders[i].Address()}, nil)
 		balance, err = L1client.BalanceAt(context.Background(), biddedAddresses[i], nil)
 		checkError(err)
 		fmt.Println("AFTER Refund bid: ", biddedAddresses[i], " has balance of ", balance)
@@ -511,8 +518,7 @@ func main() {
 	fmt.Println("BEFORE returning the winning bid (Auctioneer Address): ", SuaveDevAccount.Address(), " has balance of ", balance)
 	getFieldFromContract(contract, "auctioneerSUAVE")
 	contract = contract.Ref(SuaveDevAccount)
-	receipt = contract.SendConfidentialRequest("claimWinningBid", []interface{}{SuaveDevAccount.Address()}, nil)
-	printReceipt(receipt, contract, oracle)
+	contract.SendConfidentialRequest("claimWinningBid", []interface{}{SuaveDevAccount.Address()}, nil)
 	balance, err = L1client.BalanceAt(context.Background(), winner, nil)
 	checkError(err)
 	fmt.Println("AFTER returning the winning bid (Winning Bid Address): ", winner, " has balance of ", balance)
@@ -521,16 +527,35 @@ func main() {
 	fmt.Println("AFTER returning the winning bid: (Auctioneer Address) ", SuaveDevAccount.Address(), " has balance of ", balance)
 }
 
-func printReceipt(receipt *types.Receipt, contract, oracle *framework.Contract) {
+func setUpAuction(contract *framework.Contract) {
+	receipt := contract.SendConfidentialRequest("setUpAuction", nil, nil)
+	printReceipt(receipt, contract)
+}
+
+// TODO: remove; used  for testing only
+func printReceipt(receipt *types.Receipt, contract *framework.Contract) {
 	for i := 0; i < len(receipt.Logs); i++ {
-		if receipt.Logs[i].Topics[0] == contract.Abi.Events["testEvent"].ID {
-			event, err := contract.Abi.Events["testEvent"].ParseLog(receipt.Logs[i])
+		if receipt.Logs[i].Topics[0] == contract.Abi.Events["testEvent2"].ID {
+			event, err := contract.Abi.Events["testEvent2"].ParseLog(receipt.Logs[i])
 			checkError(err)
 			fmt.Println("test:", event["t"])
 		} else if receipt.Logs[i].Topics[0] == contract.Abi.Events["WinnerAddress"].ID {
 			event, err := contract.Abi.Events["WinnerAddress"].ParseLog(receipt.Logs[i])
 			checkError(err)
 			fmt.Println("winner:", event["winner"])
+		} else if receipt.Logs[i].Topics[0] == contract.Abi.Events["NFTHoldingAddressEvent"].ID {
+			event, err := contract.Abi.Events["NFTHoldingAddressEvent"].ParseLog(receipt.Logs[i])
+			checkError(err)
+			fmt.Println("NFTHoldingAddressEvent : ", event["nftHoldingAddress"])
+		} else if receipt.Logs[i].Topics[0] == contract.Abi.Events["ErrorEvent"].ID {
+			event, err := contract.Abi.Events["ErrorEvent"].ParseLog(receipt.Logs[i])
+			checkError(err)
+			fmt.Println("Error : ", event["error"])
+		} else if receipt.Logs[i].Topics[0] == contract.Abi.Events["testEvent"].ID {
+			event, err := contract.Abi.Events["testEvent"].ParseLog(receipt.Logs[i])
+			checkError(err)
+			fmt.Println("encrypted string : ", event["t"])
+			fmt.Println("encrypted byttes : ", event["b"])
 		}
 	}
 }
@@ -547,27 +572,52 @@ func checkErrorWithMessage(err error, mes string) {
 	}
 }
 
-// TODO: adapt
-func helper(contract *framework.Contract) {
-	// call server with cronjob now
-	url := "http://127.0.0.1:8000/reveal-bidders"
-	day := 1
-	payload := []byte(fmt.Sprintf(`{"contract":"%s", "timeout":"%d"}`, contract.Raw().Address().Hex(), day))
-
-	// Make the POST request
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+func GenerateRandomKey() ([]byte, error) {
+	key := make([]byte, 32)
+	_, err := cryptorand.Read(key)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		return nil, err
 	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	return key, nil
+}
+
+func decryptSecretAddress(randomKey []byte, input []byte) string {
+	plaintex, err := aesDecrypt(randomKey, input)
+	checkError(err)
+	return "0x" + hex.EncodeToString(plaintex)
+}
+
+func aesDecrypt(key []byte, ciphertext []byte) ([]byte, error) {
+	// Ensure the key is 32 bytes (for AES-256)
+	keyBytes := make([]byte, 32)
+	copy(keyBytes[:], key[:])
+
+	// Create a new AES cipher with the key
+	c, err := aes.NewCipher(keyBytes)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
-		return
+		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
 	}
 
-	// Print the response
-	fmt.Println("Response from host:")
-	fmt.Println(string(body))
+	// Initialize GCM (Galois/Counter Mode)
+	gcm, err := cipher.NewGCM(c)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	// Check that the ciphertext is long enough
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return nil, fmt.Errorf("ciphertext too short")
+	}
+
+	// Extract the nonce and the actual ciphertext
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+
+	// Decrypt the ciphertext
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt ciphertext: %w", err)
+	}
+
+	return plaintext, nil
 }
