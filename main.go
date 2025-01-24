@@ -429,7 +429,7 @@ func main2() {
 	oracle := deployContractWithConstructor("Oracle.sol/Oracle.json", SuaveDevAccount, chainIDL1)
 	api_key := os.Getenv("ALCHEMY_API_KEY")
 	if api_key == "" {
-		log.Fatal("ENTER PRIVATE Suave KEY in .env file!")
+		log.Fatal("ENTER ALCHEMY_API_KEY in .env file!")
 	}
 	receipt := oracle.SendConfidentialRequest("registerApiKeyOffchain", nil, []byte(api_key))
 	if receipt.Status == types.ReceiptStatusSuccessful {

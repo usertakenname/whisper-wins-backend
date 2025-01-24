@@ -7,3 +7,4 @@ myDatadir/geth
 .env
 go.mod
 go.sum
+server/.venv/

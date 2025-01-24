@@ -37,7 +37,7 @@ For running a local SUAVE devnet, make sure to have a version of `suave-geth` in
 
 To compile the smart contracts you need to run `forge build`. To be able to do that you might need to install [Foundry](https://getfoundry.sh) (atleast 0.2.2). See the [book](https://book.getfoundry.sh/getting-started/installation.html) for instructions on how to install and use Foundry. We use Solidity 0.8.19 to compile the contracts.
 
-In order to run our go files, you will need a `go` version of atleast 1.23.1. Help on how to install can be found [here](https://go.dev/doc/install) and on how to update an existing version can be found [here](https://gist.github.com/nikhita/432436d570b89cab172dcf2894465753).
+In order to run our go files, you will need a `go` version of 1.22.XX (Note: 1.23.XX is not compatible). Help on how to install can be found [here](https://go.dev/doc/install) and on how to update an existing version can be found [here](https://gist.github.com/nikhita/432436d570b89cab172dcf2894465753).
 
 Our application needs to control port 8001 (python server), 8545, 8546, 8551 and 8555 (all for local SUAVE devnet).
 
