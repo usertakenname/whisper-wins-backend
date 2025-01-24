@@ -34,8 +34,7 @@ func deployContract(_path string) *framework.Contract {
 	return fr.Suave.DeployContract(_path)
 }
 
-// TODO: does not work so far for constructor with args, need to uncomment constructor in contract
-func deployContractWithConstructor(_path string, SuaveDevAccount *framework.PrivKey, params ...interface{}) *framework.Contract { //(common.Address, *types.Transaction, *bind.BoundContract) {
+func deployContractWithConstructor(_path string, SuaveDevAccount *framework.PrivKey, params ...interface{}) *framework.Contract {
 	artifact, err := framework.ReadArtifact(_path)
 	checkError(err)
 
@@ -361,8 +360,8 @@ func revealBidders(contract *framework.Contract) []common.Address {
 	bidderList := []common.Address{}
 	fmt.Println("Number of bidders: ", len(receipt.Logs))
 	for i := 0; i < len(receipt.Logs); i++ {
-		if receipt.Logs[i].Topics[0] == contract.Abi.Events["RevealBiddingAddress"].ID {
-			event, err := contract.Abi.Events["RevealBiddingAddress"].ParseLog(receipt.Logs[i])
+		if receipt.Logs[i].Topics[0] == contract.Abi.Events["RevealBiddingAddresses"].ID {
+			event, err := contract.Abi.Events["RevealBiddingAddresses"].ParseLog(receipt.Logs[i])
 			checkError(err)
 			fmt.Println("Revealed L1 address:", event["bidderL1"])
 			bidderList = append(bidderList, event["bidderL1"].(common.Address))
@@ -518,7 +517,7 @@ func returnWinningBid(winner common.Address, contract *framework.Contract) {
 	fmt.Println("AFTER returning the winning bid (Winning Bid Address): ", winner, " has balance of ", balance)
 	balance, err = L1client.BalanceAt(context.Background(), SuaveDevAccount.Address(), nil)
 	checkError(err)
-	fmt.Println("AFTER returning the winning bid: (Auctioneer Address) ", SuaveDevAccount.Address(), " has balance of ", balance)
+	fmt.Println("AFTER returning the winning bid (Auctioneer Address): ", SuaveDevAccount.Address(), " has balance of ", balance)
 }
 
 func returnFunds(biddedAddresses []common.Address, winnerL1 common.Address, contract *framework.Contract, bidders []*framework.PrivKey) {
@@ -651,7 +650,7 @@ func main() {
 	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
 	nftTokenID, minimalBiddingAmount := big.NewInt(420), big.NewInt(1000000000)
 	nftContractAddress := L1DevAccount.Address()
-	contract := deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracle.Raw().Address()) // TODO: rpc handling in constructor does not work
+	contract := deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracle.Raw().Address())
 
 	getFieldFromContract(contract, "auctionHasStarted")
 
@@ -669,7 +668,7 @@ func main() {
 
 	fmt.Println("4.5. Start Auction")
 	//startAuction(contract) //TODO: replace for this in final product
-	startAuction(contract)
+	startAuctionTest(contract)
 
 	fmt.Println("5. Create new account & bid")
 	num_accounts := 2 // adapt accounts to be created here
@@ -693,7 +692,7 @@ func main() {
 		panic("Revealing Bidders tx Failed")
 	}
 	fmt.Println("Number of bidders: ", len(receipt.Logs))
-	event, err := contract.Abi.Events["RevealBiddingAddress"].ParseLog(receipt.Logs[0])
+	event, err := contract.Abi.Events["RevealBiddingAddresses"].ParseLog(receipt.Logs[0])
 	checkError(err)
 	fmt.Println("Revealed L1 address:\n", event["bidderL1"])
 	winnerL1 := getFieldFromContract(contract, "auctionWinnerL1")[0].(common.Address)

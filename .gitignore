@@ -8,3 +8,4 @@ myDatadir/geth
 go.mod
 go.sum
 server/.venv/
+.idea/

@@ -28,6 +28,7 @@ In order to better grasp the workflow of our application we designed a workflow 
 2. **NFT Storage:** Ideally, only the contract should be able to move the NFT. Our initial approach was to use the *FactoryContract* as the NFT holder, allowing it to perform access control on incoming transferNFT calls (ensuring only the *SealedAuction* related to the NFT could trigger the transfer). However, since we decided against implementing the *FactoryContract*, the *SealedAuction* now needs to manage the NFT directly. <br/>
 As a result, we require an address with a corresponding private key. While we could generate such a keypair and keep it confidential using SUAVE, this would require an additional transaction from the auctioneer after deploying the contract. Given that this approach is unintuitive and could disrupt the flow, we decided to store the NFT during the auction in a static address of which we know the private key.
 
+3. **Tie-Breaks in Winner Selection:** Out of simplicity, we make use of "first-come, first-serve" as a tie-breking rule. Depending on the actual resolvement strategie (contract fetching the balances on its own, have a trusted central party do this or an optimistic rollup) the bidder who requested his or her bidding address first or who proposed him- or herself first as a winner is chosen as a winner in case of a tie.
 
 ## Required Tools and Versions
 In order to run the server, you need have the latest version of [Python](https://www.python.org/downloads/) and its module `flask` installed.
@@ -45,7 +46,7 @@ In order to place a bid, make sure to have an EOA on Sepolia with sufficient fun
 
 
 ## General Deployment Procedure on a Local SUAVE Devnet:
-This section explains how to deploy and interact with a smart contract on your local SUAVE-chain. In the following section, you'll find a concrete example demonstrating how to do this with the *SealedAuction* contract.
+This section explains how to deploy and interact with a smart contract on your local SUAVE-chain. However, the command line approach to do this is very limited. For example, there is no way to deploy a conract and pass arguments to the constructor. Therefore, we implemented go-scripts to test the behaviour of our contracts. To run them on your own see section [Run main.go](#run-maingo).
 
 1. **Start your local suave chain:**
 ```bash

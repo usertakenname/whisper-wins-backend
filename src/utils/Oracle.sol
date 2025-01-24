@@ -23,6 +23,7 @@ interface SealedAuction {
 
 interface SealedAuctionEasy {
     function endAuctionCallback(address _winner, uint256 _winningBid,address[] memory _l1Addresses) external returns (bytes memory);
+    function confirmNFTowner(address _NFTowner) external returns (bytes memory);
 }
 
 contract Oracle is Suapp {
@@ -220,6 +221,35 @@ contract Oracle is Suapp {
         return sealedAuction.confirmNFTowner(NFTowner);
     }
 
+    function getNFTOwnedByEasy(
+        address _nftContract,
+        uint256 _tokenId
+    ) external returns (bytes memory) {
+        string memory path = string.concat(
+            "/getOwnersForToken?contractAddress=",
+            toHexString(abi.encodePacked(_nftContract)),
+            "&tokenId=",
+            toString(_tokenId)
+        );
+        bytes memory response = makeGetRPCCall(path);
+        address NFTowner = address(
+            uint160(
+                parseUintFromHex(
+                    stripQuotes(
+                        JSONParserLib.value(
+                            JSONParserLib.at(
+                                getJSONField(response, "owners"),
+                                0
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        SealedAuctionEasy sealedAuction = SealedAuctionEasy(msg.sender);
+        return sealedAuction.confirmNFTowner(NFTowner);
+    }
+
     function registerContract(
         address contract_address,
         uint256 end_time
@@ -363,7 +393,9 @@ contract Oracle is Suapp {
         );
     }
 
-    // msgSender is Suave msg sender, L1ReturnAddress is the address to return
+    // returnAddress is the to address, DataId is the from address
+    // overapproximation of the gas price to make sure it goes through
+    // TODOL: replace finalETHBlock with latest?
     function transfer(
         address returnAddress,
         uint256 finalETHBlock,
@@ -387,8 +419,6 @@ contract Oracle is Suapp {
         } else {
             emit FundsTooLessToPayout(publicL1Address);
         }
-
-        SealedAuction sealedAuction = SealedAuction(msg.sender);
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
