@@ -279,6 +279,12 @@ contract OracleRollup is Suapp {
         return sealedAuction.refuteWinnerCallback(l1Address, balance);
     }
 
+    function getNearestPreviousBlockExternal(
+        uint256 timestamp
+    ) external etherscanKeyStored returns (uint256) {
+        return getNearestPreviousBlock(timestamp);
+    }
+
     // =============================================================
     //                  FUNCTIONALITY: RPC Calls
     // =============================================================

@@ -32,7 +32,7 @@ def handle_error(contract_address,rerun):
 def register_contract():
     data = request.get_json()
     print("Received register request:", data)
-    exec_unix_timestamp = int(data.get("end_timestamp")) + 5 # add some puffer seconds
+    exec_unix_timestamp = int(data.get("end_timestamp")) + 10 # add some puffer seconds
     delay = (datetime.fromtimestamp(exec_unix_timestamp, tz=timezone.utc) - datetime.now(timezone.utc)).total_seconds()
     contract_address = data.get("address")
     if delay > 0:

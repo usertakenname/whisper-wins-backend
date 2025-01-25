@@ -359,16 +359,11 @@ func revealBidders(contract *framework.Contract) []common.Address {
 	if receipt.Status == types.ReceiptStatusFailed {
 		panic("Revealing Bidders tx Failed")
 	}
-	bidderList := []common.Address{}
-	fmt.Println("Number of bidders: ", len(receipt.Logs))
-	for i := 0; i < len(receipt.Logs); i++ {
-		if receipt.Logs[i].Topics[0] == contract.Abi.Events["RevealBiddingAddresses"].ID {
-			event, err := contract.Abi.Events["RevealBiddingAddresses"].ParseLog(receipt.Logs[i])
-			checkError(err)
-			fmt.Println("Revealed L1 address:", event["bidderL1"])
-			bidderList = append(bidderList, event["bidderL1"].(common.Address))
-		}
-	}
+	event, err := contract.Abi.Events["RevealBiddingAddresses"].ParseLog(receipt.Logs[0])
+	checkError(err)
+	bidderList := event["bidderL1"].([]common.Address)
+	fmt.Println("Number of bidders: ", len(bidderList))
+	fmt.Println("Revealed L1 addresses:", event["bidderL1"])
 	return bidderList
 }
 
@@ -428,23 +423,33 @@ func main2() {
 	fmt.Println("USING THE ROLLUP AUCTION RESOLVING")
 	fmt.Println("0. Setup: Deploy Oracle")
 	chainIDL1 := big.NewInt(LOCAL_TESTCHAIN_ID)
-	oracle := deployContractWithConstructor("OracleRollup.sol/OracleRollup.json", SuaveDevAccount, chainIDL1)
+	oracle := deployContractWithConstructor("OracleRollup.sol/OracleRollup.json", SuaveDevAccount, chainIDL1)	
 	api_key := os.Getenv("ALCHEMY_API_KEY")
 	if api_key == "" {
 		log.Fatal("ENTER ALCHEMY_API_KEY in .env file!")
 	}
-	receipt := oracle.SendConfidentialRequest("registerApiKeyOffchain", nil, []byte(api_key))
-	if receipt.Status == types.ReceiptStatusSuccessful {
-		fmt.Println("API Key registered")
+	api_key2 := os.Getenv("ETHERSCAN_API_KEY")
+	if api_key == "" {
+		log.Fatal("ENTER ETHERSCAN_API_KEY in .env file!")
 	}
-
+	receipt := oracle.SendConfidentialRequest("registerApiKeyOffchain", []interface{}{"alchemy"}, []byte(api_key))
+	if receipt.Status == types.ReceiptStatusSuccessful {
+		fmt.Println("ALCHEMY_API Key registered")
+	}
+	receipt = oracle.SendConfidentialRequest("registerApiKeyOffchain", []interface{}{"etherscan"}, []byte(api_key2))
+	if receipt.Status == types.ReceiptStatusSuccessful {
+		fmt.Println("ETHERSCAN_API Key registered")
+	}
+	fmt.Println("0.5 Fund Validator")
+	// validatorBalance := big.NewInt(6000000000000000)
+	// fundSuaveAccount(common.HexToAddress("0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D"), validatorBalance)
 	fmt.Println("1. Deploy Sealed Auction Rollup contract")
 	//TODO: adapt inputs to something interesting (not yet used)
 	auctionInSeconds := int64(10)
 	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
 	nftTokenID, minimalBiddingAmount := big.NewInt(420), big.NewInt(1000000000)
 	nftContractAddress := L1DevAccount.Address()
-	contract := deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracle.Raw().Address()) // TODO: rpc handling in constructor does not work
+	contract := deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracle.Raw().Address())
 
 	getFieldFromContract(contract, "auctionHasStarted")
 
@@ -483,7 +488,8 @@ func main2() {
 	fmt.Println("7. Waiting for server to reveal bidders...")
 	time.Sleep(time.Duration(auctionInSeconds) * time.Second) //TODO: fix timing here as block.timestamp is unreliable
 	fmt.Println("Current time: ", time.Now().Unix())
-	getFieldFromContract(contract, "auctionEndTime")
+	// todo: get one of the following lines to run as we need the biddingAddresses
+	// biddedAddresses := getFieldFromContract(contract, "publicL1Addresses")[0].([]common.Address)
 	biddedAddresses := revealBidders(contract) // need this to get the contracts but winner should have been determined
 
 	winner := getFieldFromContract(contract, "auctionWinnerL1")[0].(common.Address)

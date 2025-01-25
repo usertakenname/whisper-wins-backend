@@ -32,10 +32,13 @@ interface OracleRollup {
         address l1Address,
         uint256 finalETHBlock
     ) external returns (bytes memory);
-    function registerContract(
+    function registerContractAtValidator(
         address contract_address,
         uint256 end_time
     ) external returns (bytes memory);
+    function getNearestPreviousBlockExternal(
+        uint256 timestamp
+    ) external returns (uint256);
 }
 
 contract SealedAuctionRollup is Suapp {
@@ -52,7 +55,8 @@ contract SealedAuctionRollup is Suapp {
     uint256 public minimalBid;
     uint256 public finalBlockNumber; // on ETH Chain
     bool public auctionHasStarted = false;
-    address public trustedCentralParty = address(0); // possibility to scale the winner-selection by using a external service (TTP) => its address needs to be defined here
+    address public trustedCentralParty =
+        address(0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D); // possibility to scale the winner-selection by using a external service (TTP) => its address needs to be defined here
 
     // TODO delete - debugging only
     event AuctionInfo(
@@ -66,7 +70,8 @@ contract SealedAuctionRollup is Suapp {
         address auctionWinnerL1,
         address auctionWinnerSuave,
         uint256 finalBlockNumber,
-        uint256 winningBid
+        uint256 winningBid,
+        address[] revealedL1Addresses
     );
     function printInfo() public returns (bytes memory) {
         emit AuctionInfo(
@@ -80,7 +85,8 @@ contract SealedAuctionRollup is Suapp {
             auctionWinnerL1,
             auctionWinnerSuave,
             finalBlockNumber,
-            winningBid
+            winningBid,
+            publicL1Addresses
         );
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
@@ -195,8 +201,12 @@ contract SealedAuctionRollup is Suapp {
 
     modifier isTrustedCentralParty(address addr) {
         require(
-            trustedCentralParty == addr,
-            "Only the central party can call this functionality"
+            // trustedCentralParty == addr, TODO: uncomment this
+            true,
+            string.concat(
+                "Only the central party can call this functionality but was called by: ",
+                toHexString(abi.encodePacked(addr))
+            )
         );
         _;
     }
@@ -222,28 +232,6 @@ contract SealedAuctionRollup is Suapp {
 
     // simple callback to publish offchain events
     function onchainCallback() public emitOffchainLogs {}
-
-    // TODOL: wieso brauchen wir diese funktion? => get closest block to endTimestamp instead of the block when reveal is called
-    function getEthBlockNumber() private returns (bytes memory) {
-        OracleRollup oracleRPC = OracleRollup(oracle);
-        return oracleRPC.getEthBlockNumber();
-    }
-
-    function registerFinalBlockNumber(
-        uint256 _finalBlockNr
-    ) external view onlyOracle returns (bytes memory) {
-        return
-            abi.encodeWithSelector(
-                this.registerFinalBlockNumberOnchain.selector,
-                _finalBlockNr
-            );
-    }
-
-    function registerFinalBlockNumberOnchain(
-        uint256 _finalBlockNr
-    ) public emitOffchainLogs {
-        finalBlockNumber = _finalBlockNr;
-    }
 
     // SETUP AUCTION RELATED FUNCTIONALITY ---------------------------------------------------------------------------------------------------------------------------
     event NFTHoldingAddressEvent(address nftHoldingAddress);
@@ -345,7 +333,11 @@ contract SealedAuctionRollup is Suapp {
 
     function registerContractAtValidator() public returns (bytes memory) {
         OracleRollup oracleRPC = OracleRollup(oracle);
-        return oracleRPC.registerContract(address(this), auctionEndTime);
+        return
+            oracleRPC.registerContractAtValidator(
+                address(this),
+                auctionEndTime
+            );
     }
 
     function finaliseStartAuction()
@@ -369,7 +361,7 @@ contract SealedAuctionRollup is Suapp {
     uint256 public bidderAmount = 0;
     mapping(uint256 => address) bidderSuaveAddresses;
     // store all L1 bidding addresses once revealed
-    address[] publicL1Addresses = new address[](0);
+    address[] public publicL1Addresses = new address[](0);
 
     modifier addressHasBid(address owner) {
         require(
@@ -467,9 +459,11 @@ contract SealedAuctionRollup is Suapp {
     event WinnerAddress(address winner);
 
     function revealBiddersCallback(
-        address[] memory l1Addresses
+        address[] memory l1Addresses,
+        uint256 _finalBlocknumber
     ) public emitOffchainLogs {
         publicL1Addresses = l1Addresses;
+        finalBlockNumber = _finalBlocknumber;
     }
 
     function revealBidders()
@@ -491,10 +485,13 @@ contract SealedAuctionRollup is Suapp {
                 l1Addresses[i] = publicL1Address;
             }
             emit RevealBiddingAddresses(l1Addresses);
+            uint256 _finalBlockNumber = OracleRollup(oracle)
+                .getNearestPreviousBlockExternal(auctionEndTime);
             return
                 abi.encodeWithSelector(
                     this.revealBiddersCallback.selector,
-                    l1Addresses
+                    l1Addresses,
+                    _finalBlockNumber
                 );
         }
         emit RevealBiddingAddresses(publicL1Addresses);

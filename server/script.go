@@ -24,7 +24,7 @@ var SuaveClient *ethclient.Client
 var SuaveDevAccount *framework.PrivKey
 var L1client *ethclient.Client
 
-var path = "SealedAuction.sol/SealedAuction.json"
+var path = "SealedAuctionRollup.sol/SealedAuctionRollup.json"
 var fr *framework.Framework
 
 func init() {
@@ -63,15 +63,17 @@ func main() {
 		maxBalance := big.NewInt(0)
 		winnerL1 := common.HexToAddress("0x0")
 		finalBlockNumber := getFieldFromContract(contractSuave, "finalBlockNumber")[0].(*big.Int).Uint64()
-		for i := 0; i < len(receipt.Logs); i++ {
-			event, err := contractSuave.Abi.Events["RevealBiddingAddress"].ParseLog(receipt.Logs[i])
-			checkError(err)
+		fmt.Sprintf(`final block number would be "0x%x"`, finalBlockNumber)
+		event, err := contractSuave.Abi.Events["RevealBiddingAddresses"].ParseLog(receipt.Logs[0])
+		checkError(err)
+		biddingAddressesArr := event["bidderL1"].([]common.Address)
+		for i := 0; i < len(biddingAddressesArr); i++ {
 			//balance, err := L1client.BalanceAt(context.Background(), event["bidderL1"].(common.Address), nil)
-			balance := getBalanceAtBlock(event["bidderL1"].(common.Address), finalBlockNumber)
+			balance := getBalanceAtBlock(biddingAddressesArr[i], finalBlockNumber)
 			checkError(err)
 			if balance > maxBalance.Int64() {
 				maxBalance = big.NewInt(balance)
-				winnerL1 = event["bidderL1"].(common.Address)
+				winnerL1 = biddingAddressesArr[i]
 			} else if balance == maxBalance.Int64() {
 				//TODO: handle multiple same bids case
 			}
@@ -113,7 +115,9 @@ func getBalanceAtBlock(
 	url := "http://127.0.0.1:8555/"
 	chainID, err := L1client.ChainID(context.Background())
 	checkError(err)
-	payload := []byte(fmt.Sprintf(`{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["%s", [], "0x%x"], "id": "%d"}`, l1Address, finalETHBlock, chainID.Int64()))
+	// TODO for production: change to other payload
+	payload := []byte(fmt.Sprintf(`{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["%s", [], "latest"], "id": "%d"}`, l1Address, chainID.Int64()))
+	// payload := []byte(fmt.Sprintf(`{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["%s", [], "0x%x"], "id": "%d"}`, l1Address, finalETHBlock, chainID.Int64()))
 	// Make the POST request
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
 	checkError(err)
