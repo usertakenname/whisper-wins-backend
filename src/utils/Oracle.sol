@@ -22,7 +22,11 @@ interface SealedAuction {
 }
 
 interface SealedAuctionEasy {
-    function endAuctionCallback(address _winner, uint256 _winningBid,address[] memory _l1Addresses) external returns (bytes memory);
+    function endAuctionCallback(
+        address _winner,
+        uint256 _winningBid,
+        address[] memory _l1Addresses
+    ) external returns (bytes memory);
     function confirmNFTowner(address _NFTowner) external returns (bytes memory);
 }
 
@@ -30,10 +34,13 @@ contract Oracle is Suapp {
     address public owner;
     uint256 public chainID;
     Suave.DataId rpcEndpoint;
+    Suave.DataId etherscanEndpoint;
     string RPC = "RPC";
     string SERVER_URL = "http://localhost:8001";
     string BASE_API_URL = "http://localhost:8555"; // TODO: remove
     string public BASE_ALCHEMY_URL = "https://eth-sepolia.g.alchemy.com/v2/";
+    string public BASE_SEPOLIA_ETHERSCAN_URL =
+        "https://api-sepolia.etherscan.io/api";
     string PRIVATE_KEYS = "KEY";
 
     constructor(uint256 _chainID) {
@@ -55,6 +62,16 @@ contract Oracle is Suapp {
             (keccak256(abi.encodePacked((rpcEndpoint))) !=
                 keccak256(abi.encodePacked((NULL)))),
             "No RPC Endpoint registered yet"
+        );
+        _;
+    }
+
+    modifier etherscanStored() {
+        bytes memory NULL = hex"00000000000000000000000000000000";
+        require(
+            (keccak256(abi.encodePacked((etherscanEndpoint))) !=
+                keccak256(abi.encodePacked((NULL)))),
+            "No etherscan Endpoint registered yet"
         );
         _;
     }
@@ -95,6 +112,32 @@ contract Oracle is Suapp {
             );
     }
 
+    function registerESApiKeyOffchain()
+        external
+        onlyOwner
+        confidential
+        returns (bytes memory)
+    {
+        // Retrieve confidential input data (API key )
+        bytes memory rpcData = Context.confidentialInputs();
+        address[] memory peekers = new address[](1);
+        peekers[0] = address(this); // The current contract is the only allowed peeker
+
+        Suave.DataRecord memory record = Suave.newDataRecord(
+            0,
+            peekers, // Addresses allowed to read the data
+            peekers, // Addresses allowed to manage the data
+            "rpc_endpoint" // Label or identifier for the data
+        );
+
+        Suave.confidentialStore(record.id, RPC, rpcData);
+        return
+            abi.encodeWithSelector(
+                this.registerESApiKeyOnchain.selector,
+                record.id
+            );
+    }
+
     /**
      * @notice Registers an API key onchain.
      * @dev Function should only be called by registerApiKeyOffchain, not externally. (Can not be made internal! TODO: Suave currently offers no alternatives)
@@ -105,6 +148,13 @@ contract Oracle is Suapp {
     ) public onlyOwner emitOffchainLogs confidential {
         // Update the contract's stored RPC endpoint with the new record ID
         rpcEndpoint = _rpcRecord;
+    }
+
+    function registerESApiKeyOnchain(
+        Suave.DataId _rpcRecord // Identifier of the confidential data record
+    ) public onlyOwner emitOffchainLogs confidential {
+        // Update the contract's stored RPC endpoint with the new record ID
+        etherscanEndpoint = _rpcRecord;
     }
 
     /**
@@ -298,19 +348,107 @@ contract Oracle is Suapp {
     }
 
     function endAuctionEasy(
-        address[] memory l1Addresses
+        address[] memory l1Addresses,
+        uint256 endTimestamp
     ) external confidential returns (bytes memory) {
         uint256 currentMaxBid = 0;
         address currentMaxBidder = address(0);
-        for (uint256 index = 0; index < l1Addresses.length; index++) {
-            uint256 balance = getBalance(l1Addresses[index]);
+        uint256 finalBlock = getNearestPreviousBlock(endTimestamp);
+        for (uint256 i = 0; i < l1Addresses.length; i++) {
+            uint256 balance = getBalance(l1Addresses[i]); // TODO: delete, only use with local chain
+            // uint256 balance = getBalanceAtBlockEasy(l1Addresses[i], finalBlock); // TODO: change to this in production
             if (balance > currentMaxBid) {
                 currentMaxBid = balance;
-                currentMaxBidder = l1Addresses[index];
+                currentMaxBidder = l1Addresses[i];
             }
         }
         SealedAuctionEasy sealedAuction = SealedAuctionEasy(msg.sender);
-        return sealedAuction.endAuctionCallback(currentMaxBidder, currentMaxBid,l1Addresses);
+        return
+            sealedAuction.endAuctionCallback(
+                currentMaxBidder,
+                currentMaxBid,
+                l1Addresses
+            );
+    }
+
+    function getNearestPreviousBlock(
+        uint256 timestamp
+    ) public etherscanStored returns (uint256) {
+        string memory url = string.concat(
+            BASE_SEPOLIA_ETHERSCAN_URL,
+            "?module=block&action=getblocknobytime&timestamp=",
+            toString(timestamp),
+            "&closest=before&apikey=",
+            string(Suave.confidentialRetrieve(etherscanEndpoint, RPC))
+        );
+        bytes memory response = Suave.doHTTPRequest(
+            Suave.HttpRequest({
+                url: url,
+                method: "GET",
+                headers: getHeaders(),
+                body: "",
+                withFlashbotsSignature: false,
+                timeout: 7000
+            })
+        );
+        return
+            JSONParserLib.parseUint(
+                trimQuotes(
+                    JSONParserLib.value(getJSONField(response, "result"))
+                )
+            );
+    }
+
+    function getBalanceAtBlockEasy(
+        address l1Address,
+        uint256 finalETHBlock
+    ) internal confidential returns (uint256 balance) {
+        bytes memory _body = abi.encodePacked(
+            '{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["',
+            toHexString(abi.encodePacked(l1Address)),
+            '",[],"',
+            LibString.toMinimalHexString(finalETHBlock),
+            '"], "id": "',
+            toString(chainID),
+            '"}'
+        );
+        bytes memory response = makePostRPCCallTest(_body); // TODO: change to real method
+        balance = JSONParserLib.parseUintFromHex(
+            stripQuotes(
+                JSONParserLib.value(
+                    JSONParserLib.at(
+                        getJSONField(response, "result"),
+                        '"balance"'
+                    )
+                )
+            )
+        );
+    }
+
+    function transferNFT(
+        address from,
+        address to,
+        address nftContract,
+        uint256 tokenId,
+        Suave.DataId suaveDataID
+    ) public returns (bytes memory) {
+        uint256 gasPrice = getGasPrice() * 2;
+        bytes memory payload = abi.encodeWithSignature(
+            "transferFrom(address,address,uint256)",
+            from,
+            to,
+            tokenId
+        );
+
+        return
+            makeTransaction(
+                nftContract,
+                80000,
+                gasPrice,
+                0,
+                payload,
+                suaveDataID
+            );
     }
 
     event testEvent(string test);
@@ -340,7 +478,7 @@ contract Oracle is Suapp {
         );
     }
 
-     function transferEasy(
+    function transferEasy(
         address returnAddress,
         Suave.DataId suaveDataID
     ) external returns (bytes memory) {
@@ -348,22 +486,27 @@ contract Oracle is Suapp {
             suaveDataID,
             PRIVATE_KEYS
         );
-        emit testEvent(string(privateL1Key));
         address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
-       uint256 gasPrice = getGasPrice() * 2;
+        uint256 gasPrice = getGasPrice() * 2;
         uint256 value = getBalance(publicL1Address);
         if (value >= 21000 * gasPrice) {
-             makeTransaction(
+            makeTransaction(
                 returnAddress,
+                21000,
                 gasPrice,
                 value - (21000 * gasPrice),
                 "",
                 suaveDataID
-            ); 
+            );
+            return abi.encodeWithSelector(this.onchainCallback.selector);
         } else {
-            emit FundsTooLessToPayout(publicL1Address);
+            revert(
+                string.concat(
+                    "Funds too less to pay out bids at address: ",
+                    toHexString(abi.encodePacked(publicL1Address))
+                )
+            );
         }
-        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     function getBalanceAtBlock(
@@ -411,22 +554,27 @@ contract Oracle is Suapp {
         if (value >= 21000 * gasPrice) {
             makeTransaction(
                 returnAddress,
+                21000,
                 gasPrice,
                 value - (21000 * gasPrice),
                 "",
                 suaveDataID
             );
+            return abi.encodeWithSelector(this.onchainCallback.selector);
         } else {
-            emit FundsTooLessToPayout(publicL1Address);
+            revert(
+                string.concat(
+                    "Funds too less to pay out bids at address: ",
+                    toHexString(abi.encodePacked(publicL1Address))
+                )
+            );
         }
-        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
-
-    event FundsTooLessToPayout(address addressToPayout);
 
     // used to issue new transactions in order to move funds after the auction has ended (pay the auctioneer, losing bid returns)
     function makeTransaction(
         address toAddress,
+        uint256 gas,
         uint256 gasPrice,
         uint256 value,
         bytes memory payload,
@@ -442,7 +590,7 @@ contract Oracle is Suapp {
         Transactions.EIP155Request memory txnWithToAddress = Transactions
             .EIP155Request({
                 to: toAddress,
-                gas: 21000,
+                gas: gas,
                 gasPrice: gasPrice,
                 value: value,
                 nonce: nonce,

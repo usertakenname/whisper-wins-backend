@@ -112,9 +112,11 @@ func getBiddingAddress(contract *framework.Contract) string {
 	receipt := contract.SendConfidentialRequest("getBiddingAddress", nil, randomKey)
 	event, err := contract.Abi.Events["EncBiddingAddress"].ParseLog(receipt.Logs[0])
 	checkError(err)
-	plainTextAddress := decryptSecretAddress(randomKey, event["encryptedL1Address"].([]byte))
+	encryptedBiddingAddress := event["encryptedL1Address"].([]byte)
+	plainTextAddress := decryptSecretAddress(randomKey, encryptedBiddingAddress)
 	fmt.Println("Owner of Bidding address:", event["owner"])
-	fmt.Println("Encrypted L1 address:", plainTextAddress)
+	fmt.Println("Encrypted L1 address:", hex.EncodeToString(encryptedBiddingAddress))
+	fmt.Println("Decrypted L1 address:", plainTextAddress)
 	return plainTextAddress
 }
 
@@ -139,7 +141,7 @@ func fundSuaveAccount(account common.Address, fundBalance *big.Int) {
 	if bal, err := SuaveClient.BalanceAt(context.Background(), account, nil); err != nil {
 		log.Fatal(err)
 	} else {
-		log.Printf("Balance of account on Suave chain: %s:\t%t", account, bal)
+		log.Printf("Balance of account on Suave chain: %s:\t%s", account, bal)
 	}
 }
 
@@ -272,7 +274,7 @@ func fundL1Account(to common.Address, value *big.Int) error {
 	if balance.Cmp(value) != 0 {
 		return fmt.Errorf("failed to fund account")
 	} else {
-		log.Printf("Balance of account on L1 chain: %s:\t%t", to, balance)
+		log.Printf("Balance of account on L1 chain: %s:\t%s", to, balance)
 	}
 	return nil
 }
@@ -637,11 +639,19 @@ func main() {
 	oracle := deployContractWithConstructor("Oracle.sol/Oracle.json", SuaveDevAccount, chainIDL1)
 	api_key := os.Getenv("ALCHEMY_API_KEY")
 	if api_key == "" {
-		log.Fatal("ENTER PRIVATE Suave KEY in .env file!")
+		log.Fatal("ENTER ALCHEMY_API_KEY in .env file!")
+	}
+	api_key2 := os.Getenv("ETHERSCAN_API_KEY")
+	if api_key == "" {
+		log.Fatal("ENTER ETHERSCAN_API_KEY in .env file!")
 	}
 	receipt := oracle.SendConfidentialRequest("registerApiKeyOffchain", nil, []byte(api_key))
 	if receipt.Status == types.ReceiptStatusSuccessful {
-		fmt.Println("API Key registered")
+		fmt.Println("ALCHEMY_API Key registered")
+	}
+	receipt = oracle.SendConfidentialRequest("registerESApiKeyOffchain", nil, []byte(api_key2))
+	if receipt.Status == types.ReceiptStatusSuccessful {
+		fmt.Println("ETHERSCAN_API Key registered")
 	}
 	path = "SealedAuctionEasy.sol/SealedAuctionEasy.json"
 	fmt.Println("1. Deploy Easy Sealed Auction contract")
@@ -691,10 +701,9 @@ func main() {
 	if receipt.Status == types.ReceiptStatusFailed {
 		panic("Revealing Bidders tx Failed")
 	}
-	fmt.Println("Number of bidders: ", len(receipt.Logs))
 	event, err := contract.Abi.Events["RevealBiddingAddresses"].ParseLog(receipt.Logs[0])
 	checkError(err)
-	fmt.Println("Revealed L1 address:\n", event["bidderL1"])
+	fmt.Println("Revealed L1 addresses:\n", event["bidderL1"])
 	winnerL1 := getFieldFromContract(contract, "auctionWinnerL1")[0].(common.Address)
 
 	sdk.SetDefaultGasLimit(uint64(300000))

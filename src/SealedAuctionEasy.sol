@@ -16,18 +16,28 @@ interface Oracle {
         address _nftContract,
         uint256 _tokenId
     ) external returns (bytes memory);
-    function endAuctionEasy(address[] memory) external returns (bytes memory);
+    function endAuctionEasy(
+        address[] memory,
+        uint256 endTimestamp
+    ) external returns (bytes memory);
     function transferEasy(
         address returnAddress,
+        Suave.DataId suaveDataID
+    ) external returns (bytes memory);
+    function transferNFT(
+        address from,
+        address to,
+        address nftContract,
+        uint256 tokenId,
         Suave.DataId suaveDataID
     ) external returns (bytes memory);
 }
 
 contract SealedAuctionEasy is Suapp {
-    address public auctioneerSUAVE; // TODO: which fields should be public?
+    address public auctioneerSUAVE;
     address public auctionWinnerL1 = address(0);
     uint256 public winningBid = 0;
-    address public auctionWinnerSuave = address(0);
+    address public auctionWinnerSuave = address(0); // TODO: should not be made public imo => can get L1 bidding address of caller (suave msg.sender) and check if it is the winningL1
     address public oracle; // TODO: hardcode to static address once we've deployed the final version
     address public nftHoldingAddress;
     address public nftContract;
@@ -36,8 +46,7 @@ contract SealedAuctionEasy is Suapp {
     uint256 public minimalBid;
     bool public auctionHasStarted = false;
 
-
-
+    // ####################################################################
     // TODO delete - debugging only
     event AuctionInfo(
         address auctioneerSUAVE,
@@ -68,9 +77,7 @@ contract SealedAuctionEasy is Suapp {
         );
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
-
-
-
+    //###################################################################
 
     constructor(
         address nftContractAddress,
@@ -107,15 +114,16 @@ contract SealedAuctionEasy is Suapp {
         _;
     }
 
-    modifier inAuctionTime() {
+    modifier inBackOutTime() {
         require(auctionHasStarted, "Auction not yet started");
+        uint256 until = auctionEndTime - 5 * 60;
         require(
-            block.timestamp <= auctionEndTime,
+            block.timestamp <= until,
             string.concat(
-                "Auction time is over! Current timestamp: ",
+                "Auction ending too soon! Current timestamp: ",
                 toString(block.timestamp),
-                " > auction ending timestamp: ",
-                toString(auctionEndTime)
+                " > back out until timestamp: ",
+                toString(until)
             )
         );
         _;
@@ -196,7 +204,7 @@ contract SealedAuctionEasy is Suapp {
     // SETUP AUCTION RELATED FUNCTIONALITY ---------------------------------------------------------------------------------------------------------------------------
     event NFTHoldingAddressEvent(address nftHoldingAddress);
 
-    // this function generates (if not yet done) the nftHoldingAddres for the auction and emits it
+    // this function generates (if not yet done) the nftHoldingAddress for the auction and emits it
     function setUpAuction()
         public
         confidential
@@ -239,7 +247,7 @@ contract SealedAuctionEasy is Suapp {
         Suave.DataId keyRecord
     ) public {
         nftHoldingAddress = _nftHoldingAddress;
-        privateKeysL1[address(this)] = keyRecord; // The lookup address for the NFT key holding address is the auction contracts address
+        privateKeysL1[address(this)] = keyRecord; // The lookup address for the NFT-holding-address key is the auction contracts address
     }
 
     // START AUCTION RELATED FUNCTIONALITY ---------------------------------------------------------------------------------------------------------------------------
@@ -262,12 +270,18 @@ contract SealedAuctionEasy is Suapp {
         );
     }
 
-    // TODO: delete this after we deploy a nft contract in go file and have nft transfers in there
+    // TODO: delete this after we deploy a nft contract in go script and have nft transfers in there
     function startAuctionTest() public pure returns (bytes memory) {
         return abi.encodeWithSelector(this.startAuctionCallback.selector);
     }
 
-    function startAuction() public onlyAuctioneer auctionNotStarted validAuctionEndTime returns (bytes memory) {
+    function startAuction()
+        public
+        onlyAuctioneer
+        auctionNotStarted
+        validAuctionEndTime
+        returns (bytes memory)
+    {
         Oracle oracleRPC = Oracle(oracle);
         return oracleRPC.getNFTOwnedByEasy(nftContract, tokenId);
     }
@@ -283,8 +297,6 @@ contract SealedAuctionEasy is Suapp {
     }
 
     // BIDDING RELATED FUNCTIONALITY ---------------------------------------------------------------------------------------------------------------------------------
-    event RevealBiddingAddresses(address[] bidderL1);
-    event WinnerAddress(address winner);
     event EncBiddingAddress(address owner, bytes encryptedL1Address);
 
     string public PRIVATE_KEYS = "KEY";
@@ -340,6 +352,7 @@ contract SealedAuctionEasy is Suapp {
     // If caller has no bidding address so far, create a new bidding address and/else emit it in an encrypted fashion (secret is provided in confidential Input)
     function getBiddingAddress() public confidential returns (bytes memory) {
         bytes memory secretKey = Context.confidentialInputs();
+        require(secretKey.length == 32, "Please provide a valid AES-256 key");
         if (_addressHasBid[msg.sender] == false) {
             string memory privateKey = Suave.privateKeyGen(
                 Suave.CryptoSignature.SECP256
@@ -396,13 +409,15 @@ contract SealedAuctionEasy is Suapp {
     }
 
     // END-AUCTION RELATED FUNCTIONALITY -----------------------------------------------------------------------------------------------------------------------------
+    event RevealBiddingAddresses(address[] bidderL1);
+
     function endAuction()
         public
         confidential
         afterAuctionTime
         returns (bytes memory)
     {
-        if (revealedL1Addresses.length == 0) {
+        if (revealedL1Addresses.length == 0 && bidderAmount > 0) {
             Oracle oracleRpc = Oracle(oracle);
             address[] memory toRevealBiddersL1 = new address[](bidderAmount);
             for (uint256 i = 0; i < bidderAmount; i++) {
@@ -416,7 +431,7 @@ contract SealedAuctionEasy is Suapp {
                 toRevealBiddersL1[i] = (publicL1Address);
             }
             emit RevealBiddingAddresses(toRevealBiddersL1);
-            return oracleRpc.endAuctionEasy(toRevealBiddersL1);
+            return oracleRpc.endAuctionEasy(toRevealBiddersL1, auctionEndTime);
         }
         emit RevealBiddingAddresses(revealedL1Addresses);
         return abi.encodeWithSelector(this.onchainCallback.selector);
@@ -446,8 +461,12 @@ contract SealedAuctionEasy is Suapp {
                     );
             }
         }
-        revert(string.concat("Winner L1 address not part of the auction: ",  toHexString(abi.encodePacked(_winner))));
-        // return abi.encodeWithSelector(this.onchainCallback.selector);
+        revert(
+            string.concat(
+                "Winner L1 address is not part of the auction: ",
+                toHexString(abi.encodePacked(_winner))
+            )
+        );
     }
 
     function endAuctionOnchain(
@@ -457,8 +476,8 @@ contract SealedAuctionEasy is Suapp {
         address[] memory _l1Addresses
     ) public afterAuctionTime emitOffchainLogs {
         auctionWinnerL1 = _winnerL1;
-        winningBid = _winningBid;
         auctionWinnerSuave = _winnerSUAVE;
+        winningBid = _winningBid;
         revealedL1Addresses = _l1Addresses;
     }
 
@@ -487,7 +506,6 @@ contract SealedAuctionEasy is Suapp {
         confidential
         notWinnerSuave
         afterAuctionTime
-        senderHasBid
         returns (bytes memory)
     {
         Oracle oracleRPC = Oracle(oracle);
@@ -495,13 +513,55 @@ contract SealedAuctionEasy is Suapp {
             oracleRPC.transferEasy(returnAddressL1, privateKeysL1[msg.sender]);
     }
 
-    function refundNFT() internal auctionStarted {
-        // TODO transfer back to auctioneerL1
+    function claimNFT(
+        address returnAddressL1
+    )
+        public
+        confidential
+        isWinnerSuave
+        afterAuctionTime
+        returns (bytes memory)
+    {
+        Oracle oracleC = Oracle(oracle);
+        return
+            oracleC.transferNFT(
+                nftHoldingAddress,
+                returnAddressL1,
+                nftContract,
+                tokenId,
+                privateKeysL1[address(this)]
+            );
     }
 
-    function transferNFT(address returnAddressL1) public isWinnerSuave {
-        // TODO transfer nft to winner from address of ingoing tx
-        // TODO transfer funds in winner address to auctioneerL1
+    // BACK-OUT FUNCTIONALITY ----------------------------------------------------------------------------------------------------------------------------------------
+    // before the auction is started, the auctioneer has the option to claim the NFT back
+    function refundNFT(
+        address returnAddressL1
+    )
+        public
+        confidential
+        onlyAuctioneer
+        auctionNotStarted
+        returns (bytes memory)
+    {
+        Oracle oracleC = Oracle(oracle);
+        return
+            oracleC.transferNFT(
+                nftHoldingAddress,
+                returnAddressL1,
+                nftContract,
+                tokenId,
+                privateKeysL1[address(this)]
+            );
+    }
+
+    // until 5min before the auction ends, a bidder is allowed to back out and reclaim the bid
+    function backOutBid(
+        address returnAddressL1
+    ) external confidential senderHasBid inBackOutTime returns (bytes memory) {
+        Oracle oracleRPC = Oracle(oracle);
+        return
+            oracleRPC.transferEasy(returnAddressL1, privateKeysL1[msg.sender]);
     }
 
     // HELPER FUNCTIONALITY ------------------------------------------------------------------------------------------------------------------------------------------

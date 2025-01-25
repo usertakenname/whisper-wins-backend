@@ -46,7 +46,7 @@ In order to place a bid, make sure to have an EOA on Sepolia with sufficient fun
 
 
 ## General Deployment Procedure on a Local SUAVE Devnet:
-This section explains how to deploy and interact with a smart contract on your local SUAVE-chain. However, the command line approach to do this is very limited. For example, there is no way to deploy a conract and pass arguments to the constructor. Therefore, we implemented go-scripts to test the behaviour of our contracts. To run them on your own see section [Run main.go](#run-maingo).
+This section explains how to deploy and interact with a smart contract on your local SUAVE-chain. However, the command line approach to do this is very limited. For example, there is no way to deploy a contract and pass arguments to the constructor. Therefore, we implemented go-scripts to test the behaviour of our contracts. To run them on your own refer to section [Run main.go](#run-maingo).
 
 1. **Start your local suave chain:**
 ```bash
