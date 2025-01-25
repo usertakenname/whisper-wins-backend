@@ -9,22 +9,26 @@ import "solady/src/utils/JSONParserLib.sol";
 import "suave-std/crypto/Secp256k1.sol";
 import "suave-std/Transactions.sol";
 
-interface SealedAuction {
-    function endAuctionCallback(
-        address _winner,
-        uint256 _winningBid,
-        address[] memory _l1Addresses
+interface SealedAuctionRollup {
+    function registerFinalBlockNumber(
+        uint256 _finalBlockNr
     ) external returns (bytes memory);
     function confirmNFTowner(address _NFTowner) external returns (bytes memory);
+    function refuteWinnerCallback(
+        address checkedAddress,
+        uint256 balance
+    ) external returns (bytes memory);
+    function finaliseStartAuction() external view returns (bytes memory);
 }
 
-contract Oracle is Suapp {
+contract OracleRollup is Suapp {
     address public owner;
     uint256 public chainID;
     string PRIVATE_KEYS = "KEY";
     string RPC = "RPC";
     Suave.DataId alchemyEndpoint;
     Suave.DataId etherscanEndpoint;
+    string VALIDATOR_URL = "http://localhost:8001";
     string BASE_API_URL = "http://localhost:8555"; // TODO for production: remove
     string public BASE_ALCHEMY_URL = "https://eth-sepolia.g.alchemy.com/v2/";
     string public BASE_SEPOLIA_ETHERSCAN_URL =
@@ -137,6 +141,25 @@ contract Oracle is Suapp {
     //           FUNCTIONALITY: "API" FOR SEALED AUCTIONS
     // =============================================================
 
+    //TODO needed?
+    /**
+     * @notice Gets the current Ethereum Block Number.
+     * @custom:return blockNumber Current Ethereum Block Number.
+     */
+    function getEthBlockNumber() external confidential returns (bytes memory) {
+        bytes memory _body = abi.encodePacked(
+            '{"jsonrpc":"2.0", "method": "eth_blockNumber", "params": [], "id": "',
+            toString(chainID),
+            '"}'
+        );
+        bytes memory response = makePostRPCCall(_body); // TODO: remove
+        uint256 blockNumber = JSONParserLib.parseUintFromHex(
+            trimQuotes(JSONParserLib.value(getJSONField(response, "result")))
+        );
+        SealedAuctionRollup sealedAuction = SealedAuctionRollup(msg.sender);
+        return sealedAuction.registerFinalBlockNumber(blockNumber); // call the onchain function of sealed auction
+    }
+
     function getNFTOwnedBy(
         address _nftContract,
         uint256 _tokenId
@@ -162,32 +185,32 @@ contract Oracle is Suapp {
                 )
             )
         );
-        SealedAuction sealedAuction = SealedAuction(msg.sender);
+        SealedAuctionRollup sealedAuction = SealedAuctionRollup(msg.sender);
         return sealedAuction.confirmNFTowner(NFTowner);
     }
 
-    function endAuction(
-        address[] memory l1Addresses,
-        uint256 endTimestamp
-    ) external confidential returns (bytes memory) {
-        uint256 currentMaxBid = 0;
-        address currentMaxBidder = address(0);
-        uint256 finalBlock = getNearestPreviousBlock(endTimestamp);
-        for (uint256 i = 0; i < l1Addresses.length; i++) {
-            uint256 balance = getBalance(l1Addresses[i]); // TODO: delete line, only used with local chain
-            // uint256 balance = getBalanceAtBlock(l1Addresses[i], finalBlock); // TODO for production: change to this
-            if (balance > currentMaxBid) {
-                currentMaxBid = balance;
-                currentMaxBidder = l1Addresses[i];
-            }
-        }
-        SealedAuction sealedAuction = SealedAuction(msg.sender);
-        return
-            sealedAuction.endAuctionCallback(
-                currentMaxBidder,
-                currentMaxBid,
-                l1Addresses
-            );
+    function registerContractAtValidator(
+        address contract_address,
+        uint256 end_time
+    ) external returns (bytes memory) {
+        Suave.doHTTPRequest(
+            Suave.HttpRequest({
+                url: string.concat(VALIDATOR_URL, "/register-contract"),
+                method: "POST",
+                headers: getHeaders(),
+                body: abi.encodePacked(
+                    '{"end_timestamp": ',
+                    toString(end_time),
+                    ', "address": "',
+                    toHexString(abi.encodePacked(contract_address)),
+                    '"}'
+                ),
+                withFlashbotsSignature: false,
+                timeout: 7000
+            })
+        );
+        SealedAuctionRollup sealedAuction = SealedAuctionRollup(msg.sender);
+        return sealedAuction.finaliseStartAuction();
     }
 
     function transferNFT(
@@ -245,6 +268,15 @@ contract Oracle is Suapp {
                 )
             );
         }
+    }
+
+    function getBalanceAtBlockExternal(
+        address l1Address,
+        uint256 blockNumber
+    ) external confidential returns (bytes memory) {
+        uint256 balance = getBalanceAtBlock(l1Address, blockNumber);
+        SealedAuctionRollup sealedAuction = SealedAuctionRollup(msg.sender);
+        return sealedAuction.refuteWinnerCallback(l1Address, balance);
     }
 
     // =============================================================
@@ -316,7 +348,8 @@ contract Oracle is Suapp {
             '{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["',
             toHexString(abi.encodePacked(l1Address)),
             '",[],"',
-            LibString.toMinimalHexString(finalETHBlock),
+            //LibString.toMinimalHexString(finalETHBlock), //TODO change to this
+            "latest",
             '"], "id": "',
             toString(chainID),
             '"}'
@@ -448,7 +481,7 @@ contract Oracle is Suapp {
             toString(chainID),
             '"}'
         );
-        response = makePostRPCCall(_body);
+        response = makePostRPCCall(_body); //TODO: change to real rpc
     }
 
     // =============================================================
@@ -520,7 +553,7 @@ contract Oracle is Suapp {
         return JSONParserLib.parseUintFromHex(input);
     }
 
-    // method in EthJsonRPC
+    //method in EthJsonRPC
     function stripQuotes(
         string memory input
     ) internal pure returns (string memory) {

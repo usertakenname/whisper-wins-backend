@@ -414,7 +414,7 @@ var L1chainID *big.Int
 var L1DevAccount *framework.PrivKey
 var SuaveDevAccount *framework.PrivKey
 
-var path = "SealedAuction.sol/SealedAuction.json"
+var path = "SealedAuctionRollup.sol/SealedAuctionRollup.json"
 var fr *framework.Framework
 
 var useLiveNet = false
@@ -425,9 +425,10 @@ func main2() {
 		//mainWithPause()
 		return
 	}
+	fmt.Println("USING THE ROLLUP AUCTION RESOLVING")
 	fmt.Println("0. Setup: Deploy Oracle")
 	chainIDL1 := big.NewInt(LOCAL_TESTCHAIN_ID)
-	oracle := deployContractWithConstructor("Oracle.sol/Oracle.json", SuaveDevAccount, chainIDL1)
+	oracle := deployContractWithConstructor("OracleRollup.sol/OracleRollup.json", SuaveDevAccount, chainIDL1)
 	api_key := os.Getenv("ALCHEMY_API_KEY")
 	if api_key == "" {
 		log.Fatal("ENTER ALCHEMY_API_KEY in .env file!")
@@ -437,7 +438,7 @@ func main2() {
 		fmt.Println("API Key registered")
 	}
 
-	fmt.Println("1. Deploy Sealed Auction contract")
+	fmt.Println("1. Deploy Sealed Auction Rollup contract")
 	//TODO: adapt inputs to something interesting (not yet used)
 	auctionInSeconds := int64(10)
 	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
@@ -645,16 +646,16 @@ func main() {
 	if api_key == "" {
 		log.Fatal("ENTER ETHERSCAN_API_KEY in .env file!")
 	}
-	receipt := oracle.SendConfidentialRequest("registerApiKeyOffchain", nil, []byte(api_key))
+	receipt := oracle.SendConfidentialRequest("registerApiKeyOffchain", []interface{}{"alchemy"}, []byte(api_key))
 	if receipt.Status == types.ReceiptStatusSuccessful {
 		fmt.Println("ALCHEMY_API Key registered")
 	}
-	receipt = oracle.SendConfidentialRequest("registerESApiKeyOffchain", nil, []byte(api_key2))
+	receipt = oracle.SendConfidentialRequest("registerApiKeyOffchain", []interface{}{"etherscan"}, []byte(api_key2))
 	if receipt.Status == types.ReceiptStatusSuccessful {
 		fmt.Println("ETHERSCAN_API Key registered")
 	}
-	path = "SealedAuctionEasy.sol/SealedAuctionEasy.json"
-	fmt.Println("1. Deploy Easy Sealed Auction contract")
+	path = "SealedAuction.sol/SealedAuction.json"
+	fmt.Println("1. Deploy Sealed Auction contract")
 	//TODO: adapt inputs to something interesting (not yet used)
 	auctionInSeconds := int64(10)
 	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
