@@ -151,7 +151,7 @@ contract Oracle is Suapp {
         address NFTowner = address(
             uint160(
                 parseUintFromHex(
-                    stripQuotes(
+                    trimQuotes(
                         JSONParserLib.value(
                             JSONParserLib.at(
                                 getJSONField(response, "owners"),
@@ -276,7 +276,7 @@ contract Oracle is Suapp {
         bytes memory response = makePostRPCCall(_body);
 
         gasPrice = JSONParserLib.parseUintFromHex(
-            stripQuotes(JSONParserLib.value(getJSONField(response, "result")))
+            trimQuotes(JSONParserLib.value(getJSONField(response, "result")))
         );
     }
 
@@ -323,7 +323,7 @@ contract Oracle is Suapp {
         );
         bytes memory response = makePostRPCCall(_body);
         balance = JSONParserLib.parseUintFromHex(
-            stripQuotes(
+            trimQuotes(
                 JSONParserLib.value(
                     JSONParserLib.at(
                         getJSONField(response, "result"),
@@ -348,7 +348,7 @@ contract Oracle is Suapp {
         );
         bytes memory response = makePostRPCCall(_body);
         balance = JSONParserLib.parseUintFromHex(
-            stripQuotes(
+            trimQuotes(
                 JSONParserLib.value(
                     JSONParserLib.at(
                         getJSONField(response, "result"),
@@ -518,19 +518,5 @@ contract Oracle is Suapp {
         string memory input
     ) internal pure returns (uint256) {
         return JSONParserLib.parseUintFromHex(input);
-    }
-
-    // method in EthJsonRPC
-    function stripQuotes(
-        string memory input
-    ) internal pure returns (string memory) {
-        bytes memory inputBytes = bytes(input);
-        bytes memory result = new bytes(inputBytes.length - 2);
-
-        for (uint256 i = 1; i < inputBytes.length - 1; i++) {
-            result[i - 1] = inputBytes[i];
-        }
-
-        return string(result);
     }
 }
