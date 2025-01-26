@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "suave-std/Suapp.sol";
-import "./AuctionContract.sol";
+import "./SealedAuction.sol";
 import "suave-std/Context.sol";
 import "./utils/Utils.sol";
 
@@ -74,7 +74,13 @@ contract FactoryContract is Suapp {
      * emits AuctionContractCreated Event
      */
     function createAuctionContractOffchain() public returns (bytes memory) {
-        AuctionContract newContract = new AuctionContract();
+        SealedAuction newContract = new SealedAuction(
+            address(0),
+            0,
+            0,
+            0,
+            address(0)
+        );
         /*         Suave.confidentialStore(
             signingKeyRecord,
             AUCTION_CONTRACTS,

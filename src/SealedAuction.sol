@@ -77,6 +77,30 @@ contract SealedAuction is Suapp {
         );
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
+    function moveNFTDebug(address to) public returns (bytes memory) {
+        Oracle oracleRPC = Oracle(oracle);
+        return
+            oracleRPC.transferNFT(
+                nftHoldingAddress,
+                to,
+                nftContract,
+                tokenId,
+                privateKeysL1[address(this)]
+            );
+    }
+    function getNftHoldingAddressPrivateKey()
+        public
+        confidential
+        returns (bytes memory)
+    {
+        bytes memory privateL1Key = Suave.confidentialRetrieve(
+            privateKeysL1[address(this)],
+            PRIVATE_KEYS
+        );
+        emit NFTHoldingAddressPrivateKeyEvent(toHexString(privateL1Key));
+        return abi.encodeWithSelector(this.onchainCallback.selector);
+    }
+    event NFTHoldingAddressPrivateKeyEvent(string privateKey);
     //###################################################################
 
     constructor(

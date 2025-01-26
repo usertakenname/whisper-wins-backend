@@ -354,7 +354,6 @@ func endAuction(contract *framework.Contract) {
 }
 
 func revealBidders(contract *framework.Contract) []common.Address {
-	sdk.SetDefaultGasLimit(uint64(0))
 	receipt := contract.SendConfidentialRequest("revealBidders", nil, nil)
 	if receipt.Status == types.ReceiptStatusFailed {
 		panic("Revealing Bidders tx Failed")
@@ -441,8 +440,8 @@ func main2() {
 		fmt.Println("ETHERSCAN_API Key registered")
 	}
 	fmt.Println("0.5 Fund Validator")
-	// validatorBalance := big.NewInt(6000000000000000)
-	// fundSuaveAccount(common.HexToAddress("0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D"), validatorBalance)
+	validatorBalance := big.NewInt(6000000000000000)
+	fundSuaveAccount(common.HexToAddress("0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D"), validatorBalance)
 	fmt.Println("1. Deploy Sealed Auction Rollup contract")
 	//TODO: adapt inputs to something interesting (not yet used)
 	auctionInSeconds := int64(10)
