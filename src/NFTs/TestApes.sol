@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract TestApes is ERC721Enumerable, Ownable {
+abstract contract TestApes is ERC721Enumerable, Ownable {
     uint256 public constant MAX_APES = 420;
     uint256 private _currentTokenId = 1;
 

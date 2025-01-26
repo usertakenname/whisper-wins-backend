@@ -15,7 +15,7 @@ In essence, this repository consists of four smart contracts:
 
 Additionally, we set up a Python server that automatically calls *revealBidders* on the SealedAuction once the bidding time has ended. This approach is implemented for convenience, so users don't need to manually trigger this action, allowing the frontend to display the winner information seamlessly. All server-related files are located in the [server/](server/) directory.
 
- The [`main.go`](main.go) file tests the functionality of our contracts (see [Run main.go](#run-maingo) for how to do this). In order to own NFTs on Sepolia we created two toy example NFT-contracts which both implement the ERC721 standard (can be found under [NFTs/](NFTs/)). The remaining contents are related to the frameworks we used.
+ The [`main.go`](main.go) file tests the functionality of our contracts (see [Run main.go](#run-maingo) for how to do this). In order to own NFTs on Sepolia we created two toy example NFT-contracts which both implement the ERC721 standard (can be found under [src/NFTs/](src/NFTs/)). The remaining contents are related to the frameworks we used.
 
 ## Workflow
 In order to better grasp the workflow of our application we designed a workflow diagram using [draw.io](https://app.diagrams.net/). The following graph describes how our application works. For further details please refer to the source code.

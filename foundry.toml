@@ -1,10 +1,4 @@
 [profile.ci.fuzz]
 runs = 10_000
 [profile.default]
-solc_version = "0.8.19"
-remappings = [
-    "forge-std/=lib/forge-std/src/",
-    "openzeppelin/=lib/openzeppelin-contracts/",
-    "suave-std/=lib/suave-std/src/",
-    "@openzeppelin/=lib/openzeppelin-contracts/"
-]
+solc_version = "0.8.20"
