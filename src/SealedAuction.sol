@@ -304,9 +304,11 @@ contract SealedAuction is Suapp {
     // mapping of public SUAVE addresses to private keys of their bidding address on L1
     mapping(address => Suave.DataId) privateKeysL1;
     mapping(address => bool) _addressHasBid;
+
     // keep track of the bidders: bidderAmount and mapping from i-th bidder to its SUAVE-address
     uint256 public bidderAmount = 0;
     mapping(uint256 => address) bidderAddresses;
+
     // store all L1 bidding addresses once revealed
     address[] public revealedL1Addresses = new address[](0);
 
@@ -350,6 +352,7 @@ contract SealedAuction is Suapp {
     }
 
     // If caller has no bidding address so far, create a new bidding address and/else emit it in an encrypted fashion (secret is provided in confidential Input)
+    // assumes the secret key is freshly generated and kept confidential by the sender
     function getBiddingAddress() public confidential returns (bytes memory) {
         bytes memory secretKey = Context.confidentialInputs();
         require(secretKey.length == 32, "Please provide a valid AES-256 key");
@@ -401,6 +404,7 @@ contract SealedAuction is Suapp {
         }
     }
 
+    // ideally replace encryption by asymmetric crypto based on sender address
     function encryptAddress(
         bytes memory secretKey,
         bytes memory publicL1Address
@@ -411,6 +415,8 @@ contract SealedAuction is Suapp {
     // END-AUCTION RELATED FUNCTIONALITY -----------------------------------------------------------------------------------------------------------------------------
     event RevealBiddingAddresses(address[] bidderL1);
 
+    // pretty expensive, as it fetches the balance of every bidding address one by one => exceed gas limit with just a few bidders
+    // refer to README "2. Poor Scalability" of section "Limitations and Simplifications"
     function endAuction()
         public
         confidential
@@ -555,7 +561,7 @@ contract SealedAuction is Suapp {
             );
     }
 
-    // until 5min before the auction ends, a bidder is allowed to back out and reclaim the bid
+    // until 5 minutes before the auction ends, a bidder is allowed to back out and reclaim the bid
     function backOutBid(
         address returnAddressL1
     ) external confidential senderHasBid inBackOutTime returns (bytes memory) {
