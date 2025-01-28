@@ -140,7 +140,7 @@ contract SealedAuction is Suapp {
 
     modifier inBackOutTime() {
         require(auctionHasStarted, "Auction not yet started");
-        uint256 until = auctionEndTime - 5 * 60;
+        uint256 until = auctionEndTime - 15 * 60;
         require(
             block.timestamp <= until,
             string.concat(
@@ -445,26 +445,40 @@ contract SealedAuction is Suapp {
         public
         confidential
         afterAuctionTime
-        returns (bytes memory)
-    {
-        if (revealedL1Addresses.length == 0 && bidderAmount > 0) {
-            Oracle oracleRpc = Oracle(oracle);
-            address[] memory toRevealBiddersL1 = new address[](bidderAmount);
-            for (uint256 i = 0; i < bidderAmount; i++) {
-                bytes memory privateL1Key = Suave.confidentialRetrieve(
-                    privateKeysL1[bidderAddresses[i]],
-                    PRIVATE_KEYS
+    returns (bytes memory){
+        if (bidderAmount > 0) {
+            if (revealedL1Addresses.length == 0) {
+                Oracle oracleRpc = Oracle(oracle);
+                address[] memory toRevealBiddersL1 = new address[](
+                    bidderAmount
                 );
-                address publicL1Address = Secp256k1.deriveAddress(
-                    string(privateL1Key)
-                );
-                toRevealBiddersL1[i] = (publicL1Address);
+                for (uint256 i = 0; i < bidderAmount; i++) {
+                    bytes memory privateL1Key = Suave.confidentialRetrieve(
+                        privateKeysL1[bidderAddresses[i]],
+                        PRIVATE_KEYS
+                    );
+                    address publicL1Address = Secp256k1.deriveAddress(
+                        string(privateL1Key)
+                    );
+                    toRevealBiddersL1[i] = (publicL1Address);
+                }
+                emit RevealBiddingAddresses(toRevealBiddersL1);
+                return oracleRpc.endAuction(toRevealBiddersL1, auctionEndTime);
+            } else {
+                emit RevealBiddingAddresses(revealedL1Addresses);
+                return abi.encodeWithSelector(this.onchainCallback.selector);
             }
-            emit RevealBiddingAddresses(toRevealBiddersL1);
-            return oracleRpc.endAuction(toRevealBiddersL1, auctionEndTime);
+        } else {
+            //no one bid -> set winner to auctioneer
+            return
+                abi.encodeWithSelector(
+                    this.endAuctionOnchain.selector,
+                    auctioneerSUAVE,
+                    auctioneerSUAVE,
+                    0,
+                    new address[](0)
+                );
         }
-        emit RevealBiddingAddresses(revealedL1Addresses);
-        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     function endAuctionCallback(
@@ -514,7 +528,7 @@ contract SealedAuction is Suapp {
     function claimWinningBid(
         address returnAddressL1
     )
-        external
+        internal
         confidential
         onlyAuctioneer
         afterAuctionTime
@@ -529,10 +543,23 @@ contract SealedAuction is Suapp {
             );
     }
 
+    function returnValuables(
+        address returnAddressL1
+    ) external afterAuctionTime confidential returns (bytes memory) {
+        if (msg.sender == auctioneerSUAVE) {
+            // auctioneer has to be checked first! Do not change order!
+            return claimWinningBid(returnAddressL1); // auctioneer can claim the winning Bid
+        } else if (checkIsWinner(msg.sender)) {
+            return claimNFT(returnAddressL1); // winner gets to claim their NFT
+        } else {
+            return refundBid(returnAddressL1); // losers can refund their bid (checks whether a bid was placed)
+        }
+    }
+
     function refundBid(
         address returnAddressL1
     )
-        external
+        internal
         confidential
         notWinnerSuave
         afterAuctionTime
@@ -546,7 +573,7 @@ contract SealedAuction is Suapp {
     function claimNFT(
         address returnAddressL1
     )
-        public
+        internal
         confidential
         isWinnerSuave
         afterAuctionTime
@@ -585,7 +612,7 @@ contract SealedAuction is Suapp {
             );
     }
 
-    // until 5 minutes before the auction ends, a bidder is allowed to back out and reclaim the bid
+    // until 15 minutes before the auction ends, a bidder is allowed to back out and reclaim the bid
     function backOutBid(
         address returnAddressL1
     ) external confidential senderHasBid inBackOutTime returns (bytes memory) {

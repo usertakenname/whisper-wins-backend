@@ -422,7 +422,7 @@ func main2() {
 	fmt.Println("USING THE ROLLUP AUCTION RESOLVING")
 	fmt.Println("0. Setup: Deploy Oracle")
 	chainIDL1 := big.NewInt(LOCAL_TESTCHAIN_ID)
-	oracle := deployContractWithConstructor("OracleRollup.sol/OracleRollup.json", SuaveDevAccount, chainIDL1)	
+	oracle := deployContractWithConstructor("OracleRollup.sol/OracleRollup.json", SuaveDevAccount, chainIDL1)
 	api_key := os.Getenv("ALCHEMY_API_KEY")
 	if api_key == "" {
 		log.Fatal("ENTER ALCHEMY_API_KEY in .env file!")
@@ -519,7 +519,7 @@ func returnWinningBid(winner common.Address, contract *framework.Contract) {
 	fmt.Println("BEFORE returning the winning bid (Auctioneer Address): ", SuaveDevAccount.Address(), " has balance of ", balance)
 	getFieldFromContract(contract, "auctioneerSUAVE")
 	contract = contract.Ref(SuaveDevAccount)
-	contract.SendConfidentialRequest("claimWinningBid", []interface{}{SuaveDevAccount.Address()}, nil)
+	contract.SendConfidentialRequest("returnValuables", []interface{}{SuaveDevAccount.Address()}, nil)
 	balance, err = L1client.BalanceAt(context.Background(), winner, nil)
 	checkError(err)
 	fmt.Println("AFTER returning the winning bid (Winning Bid Address): ", winner, " has balance of ", balance)
@@ -540,7 +540,7 @@ func returnFunds(biddedAddresses []common.Address, winnerL1 common.Address, cont
 		fmt.Println("BEFORE Refund bid: ", biddedAddresses[i], " has balance of ", balance)
 		bidContract := contract.Ref(bidders[i])
 		fmt.Println("Get funds back for Suave Address:", bidders[i].Address())
-		receipt := bidContract.SendConfidentialRequest("refundBid", []interface{}{bidders[i].Address()}, nil)
+		receipt := bidContract.SendConfidentialRequest("returnValuables", []interface{}{bidders[i].Address()}, nil)
 		printReceipt(receipt, contract)
 		balance, err = L1client.BalanceAt(context.Background(), biddedAddresses[i], nil)
 		checkError(err)
@@ -688,6 +688,12 @@ func main() {
 
 	fmt.Println("5. Create new account & bid")
 	num_accounts := 2 // adapt accounts to be created here
+	//For 2: USED GAS FOR END AUCTION: 372152
+	//For 10: USED GAS FOR END AUCTION: 715376
+	//For 15: USED GAS FOR END AUCTION: 929860
+	//For 20: USED GAS FOR END AUCTION: 1145954
+	//For 25: USED GAS FOR END AUCTION: 1362084
+	// fails for 30
 	bidders := make([]*framework.PrivKey, 0)
 	for i := 0; i < num_accounts; i++ {
 		fmt.Println("Creating account #", i)
@@ -701,7 +707,6 @@ func main() {
 	fmt.Println("End auction now")
 	fmt.Println("Current time: ", time.Now().Unix())
 	getFieldFromContract(contract, "auctionEndTime")
-	sdk.SetDefaultGasLimit(uint64(0))
 
 	receipt = contract.SendConfidentialRequest("endAuction", nil, nil)
 	if receipt.Status == types.ReceiptStatusFailed {
