@@ -140,7 +140,7 @@ contract Oracle is Suapp {
     function getNFTOwnedBy(
         address _nftContract,
         uint256 _tokenId
-    ) external returns (bytes memory) {
+    ) external returns (address) {
         string memory path = string.concat(
             "/getOwnersForToken?contractAddress=",
             toHexString(abi.encodePacked(_nftContract)),
@@ -162,8 +162,7 @@ contract Oracle is Suapp {
                 )
             )
         );
-        SealedAuction sealedAuction = SealedAuction(msg.sender);
-        return sealedAuction.confirmNFTowner(NFTowner);
+        return NFTowner;
     }
 
     function endAuction(
