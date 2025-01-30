@@ -247,6 +247,42 @@ contract Oracle is Suapp {
         }
     }
 
+    function transferETHForNFT(
+        address returnAddress,
+        Suave.DataId suaveDataID
+    ) external {
+        bytes memory privateL1Key = Suave.confidentialRetrieve(
+            suaveDataID,
+            PRIVATE_KEYS
+        );
+        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
+        uint256 gasPrice = getGasPrice() * 2;
+        uint256 value = getBalance(publicL1Address);
+        if (value >= 101000 * gasPrice) {
+            makeTransaction(
+                returnAddress,
+                21000,
+                gasPrice,
+                80000 * gasPrice,
+                "",
+                suaveDataID
+            );
+        }
+        // TODO: only for debug => remove else branch
+        else {
+            revert(
+                string.concat(
+                    "Funds too less to pay out bids at address: ",
+                    toHexString(abi.encodePacked(publicL1Address)),
+                    "\nhas: ",
+                    toString(value),
+                    "\tneeds: ",
+                    toString(101000 * gasPrice)
+                )
+            );
+        }
+    }
+
     // =============================================================
     //                  FUNCTIONALITY: RPC Calls
     // =============================================================

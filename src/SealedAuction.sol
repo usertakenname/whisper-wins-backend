@@ -31,6 +31,10 @@ interface Oracle {
         uint256 tokenId,
         Suave.DataId suaveDataID
     ) external returns (bytes memory);
+    function transferETHForNFT(
+        address returnAddress,
+        Suave.DataId suaveDataID
+    ) external;
 }
 
 contract SealedAuction is Suapp {
@@ -140,7 +144,7 @@ contract SealedAuction is Suapp {
 
     modifier inBackOutTime() {
         require(auctionHasStarted, "Auction not yet started");
-        uint256 until = auctionEndTime - 5 * 60;
+        uint256 until = auctionEndTime - 15 * 60;
         require(
             block.timestamp <= until,
             string.concat(
@@ -481,6 +485,14 @@ contract SealedAuction is Suapp {
                 string(privateL1Key)
             );
             if (publicL1Address == _winner) {
+                // fund the NFT-holding address from the winning bid address such that it can issue the NFT-transferal when requested by the winner
+                // Note: If the winning bid is too small, the transaction might fail and the winner needs to fund the NFTHoldingAddress on his/herown
+                //       in order to claim it.
+                Oracle(oracle).transferETHForNFT(
+                    nftHoldingAddress,
+                    privateKeysL1[bidderAddresses[i]]
+                );
+
                 return
                     abi.encodeWithSelector(
                         this.endAuctionOnchain.selector,
@@ -505,22 +517,40 @@ contract SealedAuction is Suapp {
         uint256 _winningBid,
         address[] memory _l1Addresses
     ) public afterAuctionTime emitOffchainLogs {
-        auctionWinnerL1 = _winnerL1;
-        auctionWinnerSuave = _winnerSUAVE;
-        winningBid = _winningBid;
+        // set the autioneer as winner if no valid bid available
+        if (_winningBid < minimalBid) {
+            auctionWinnerL1 = address(0);
+            auctionWinnerSuave = auctioneerSUAVE;
+            winningBid = 0;
+        } else {
+            auctionWinnerL1 = _winnerL1;
+            auctionWinnerSuave = _winnerSUAVE;
+            winningBid = _winningBid;
+        }
         revealedL1Addresses = _l1Addresses;
     }
 
-    function claimWinningBid(
+    function claim(
         address returnAddressL1
     )
         external
         confidential
-        onlyAuctioneer
         afterAuctionTime
         winnerRegistered
         returns (bytes memory)
     {
+        if (msg.sender == auctioneerSUAVE) {
+            return transferWinningBid(returnAddressL1);
+        } else if (checkIsWinner(msg.sender)) {
+            return transferNFT(returnAddressL1);
+        } else {
+            return refundBid(returnAddressL1);
+        }
+    }
+
+    function transferWinningBid(
+        address returnAddressL1
+    ) internal onlyAuctioneer returns (bytes memory) {
         Oracle oracleRPC = Oracle(oracle);
         return
             oracleRPC.transferETH(
@@ -529,29 +559,9 @@ contract SealedAuction is Suapp {
             );
     }
 
-    function refundBid(
+    function transferNFT(
         address returnAddressL1
-    )
-        external
-        confidential
-        notWinnerSuave
-        afterAuctionTime
-        returns (bytes memory)
-    {
-        Oracle oracleRPC = Oracle(oracle);
-        return
-            oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
-    }
-
-    function claimNFT(
-        address returnAddressL1
-    )
-        public
-        confidential
-        isWinnerSuave
-        afterAuctionTime
-        returns (bytes memory)
-    {
+    ) internal isWinnerSuave returns (bytes memory) {
         Oracle oracleRPC = Oracle(oracle);
         return
             oracleRPC.transferNFT(
@@ -561,6 +571,14 @@ contract SealedAuction is Suapp {
                 tokenId,
                 privateKeysL1[address(this)]
             );
+    }
+
+    function refundBid(
+        address returnAddressL1
+    ) internal notWinnerSuave returns (bytes memory) {
+        Oracle oracleRPC = Oracle(oracle);
+        return
+            oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
     }
 
     // BACK-OUT FUNCTIONALITY ----------------------------------------------------------------------------------------------------------------------------------------
@@ -585,7 +603,7 @@ contract SealedAuction is Suapp {
             );
     }
 
-    // until 5 minutes before the auction ends, a bidder is allowed to back out and reclaim the bid
+    // until 15 minutes before the auction ends, a bidder is allowed to back out and reclaim the bid
     function backOutBid(
         address returnAddressL1
     ) external confidential senderHasBid inBackOutTime returns (bytes memory) {
