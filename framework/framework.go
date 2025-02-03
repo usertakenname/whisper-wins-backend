@@ -185,7 +185,7 @@ type Framework struct {
 }
 
 type Config struct {
-	KettleRPC string `env:"KETTLE_RPC, default=http://localhost:8545"`
+	KettleRPC string `env:"KETTLE_RPC, default=https://rpc.toliman.suave.flashbots.net"`
 
 	// This account is funded in your local SUAVE devnet
 	// address: 0xBE69d72ca5f88aCba033a063dF5DBe43a4148De0

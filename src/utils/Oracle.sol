@@ -25,7 +25,6 @@ contract Oracle is Suapp {
     string RPC = "RPC";
     Suave.DataId alchemyEndpoint;
     Suave.DataId etherscanEndpoint;
-    string BASE_API_URL = "http://localhost:8555"; // TODO for production: remove
     string public BASE_ALCHEMY_URL = "https://eth-sepolia.g.alchemy.com/v2/";
     string public BASE_SEPOLIA_ETHERSCAN_URL =
         "https://api-sepolia.etherscan.io/api";
@@ -173,8 +172,7 @@ contract Oracle is Suapp {
         address currentMaxBidder = address(0);
         uint256 finalBlock = getNearestPreviousBlock(endTimestamp);
         for (uint256 i = 0; i < l1Addresses.length; i++) {
-            uint256 balance = getBalance(l1Addresses[i]); // TODO: delete line, only used with local chain
-            // uint256 balance = getBalanceAtBlock(l1Addresses[i], finalBlock); // TODO for production: change to this
+            uint256 balance = getBalanceAtBlock(l1Addresses[i], finalBlock); 
             if (balance > currentMaxBid) {
                 currentMaxBid = balance;
                 currentMaxBidder = l1Addresses[i];
@@ -187,6 +185,23 @@ contract Oracle is Suapp {
                 currentMaxBid,
                 l1Addresses
             );
+    }
+
+     function endAuction2(
+        address[] memory l1Addresses,
+        uint256 endTimestamp
+    ) external confidential returns (uint256, address) {
+        uint256 currentMaxBid = 0;
+        address currentMaxBidder = address(0);
+        uint256 finalBlock = getNearestPreviousBlock(endTimestamp);
+        for (uint256 i = 0; i < l1Addresses.length; i++) {
+            uint256 balance = getBalanceAtBlock(l1Addresses[i], finalBlock); 
+            if (balance > currentMaxBid) {
+                currentMaxBid = balance;
+                currentMaxBidder = l1Addresses[i];
+            }
+        }
+        return (currentMaxBid, currentMaxBidder);
     }
 
     function transferNFT(
@@ -447,7 +462,7 @@ contract Oracle is Suapp {
         return
             Suave.doHTTPRequest(
                 Suave.HttpRequest({
-                    url: BASE_API_URL, // TODO for production: replace with getRPCEndpointURL()
+                    url: getRPCEndpointURL(), 
                     method: "POST",
                     headers: getHeaders(),
                     body: _body,
