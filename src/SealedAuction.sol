@@ -23,14 +23,14 @@ interface Oracle {
     function transferETH(
         address returnAddress,
         Suave.DataId suaveDataID
-    ) external returns (bytes memory);
+    ) external;
     function transferNFT(
         address from,
         address to,
         address nftContract,
         uint256 tokenId,
         Suave.DataId suaveDataID
-    ) external returns (bytes memory);
+    ) external;
     function transferETHForNFT(
         address returnAddress,
         Suave.DataId suaveDataID
@@ -92,9 +92,8 @@ contract SealedAuction is Suapp {
         );
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
-    function moveNFTDebug(address to) public returns (bytes memory) {
+    function moveNFTDebug(address to) public {
         Oracle oracleRPC = Oracle(oracle);
-        return
             oracleRPC.transferNFT(
                 nftHoldingAddress,
                 to,
@@ -106,14 +105,12 @@ contract SealedAuction is Suapp {
     function getNftHoldingAddressPrivateKey()
         public
         confidential
-        returns (bytes memory)
     {
         bytes memory privateL1Key = Suave.confidentialRetrieve(
             privateKeysL1[address(this)],
             PRIVATE_KEYS
         );
         emit NFTHoldingAddressPrivateKeyEvent(string(privateL1Key));
-        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
     event NFTHoldingAddressPrivateKeyEvent(string privateKey);
 
@@ -249,7 +246,6 @@ contract SealedAuction is Suapp {
     )
         internal
         view
-        addressHasBid(checkSuaveAddress)
         winnerRegistered
         returns (bool)
     {
@@ -540,7 +536,7 @@ contract SealedAuction is Suapp {
                     toRevealBiddersL1[i] = (publicL1Address);
                 }
                 emit RevealBiddingAddresses(toRevealBiddersL1);
-                (uint256 _winningBid, address _winner) = oracleRpc.endAuction2(
+                (uint256 _winningBid, address _winner) = oracleRpc.endAuction2( // 2 is the correct version 04.02
                     toRevealBiddersL1,
                     auctionEndTime
                 );
@@ -578,7 +574,7 @@ contract SealedAuction is Suapp {
                         _winner, //TODO change winner suave
                         _winner,
                         _winningBid,
-                        new address[](0)
+                        toRevealBiddersL1
                     );
                 // return oracleRpc.endAuction(toRevealBiddersL1, auctionEndTime);
             } else {
@@ -688,18 +684,22 @@ contract SealedAuction is Suapp {
     )
         external
         confidential
-        afterAuctionTime
         winnerRegistered
         returns (bytes memory)
     {
-        if (msg.sender == auctioneerSUAVE) {
-            // auctioneer has to be checked first. Do not change the order!
-            return transferWinningBid(returnAddressL1);
+        // when no one bid -> auctioneer gets the NFT
+        if (msg.sender == auctioneerSUAVE) { // auctioneer has to be checked first. Do not change the order!
+            if(auctionWinnerSuave == auctioneerSUAVE) { // there is no winner -> transfer NFT back to auctioneer
+                transferNFT(returnAddressL1);
+            } else {           
+            transferWinningBid(returnAddressL1);
+            }
         } else if (checkIsWinner(msg.sender)) {
-            return transferNFT(returnAddressL1);
+            transferNFT(returnAddressL1);
         } else {
-            return refundBid(returnAddressL1);
+            refundBid(returnAddressL1);
         }
+        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     /**
@@ -709,13 +709,22 @@ contract SealedAuction is Suapp {
      */
     function transferWinningBid(
         address returnAddressL1
-    ) internal onlyAuctioneer returns (bytes memory) {
+    ) internal onlyAuctioneer  {
         Oracle oracleRPC = Oracle(oracle);
-        return
             oracleRPC.transferETH(
                 returnAddressL1,
                 privateKeysL1[auctionWinnerSuave]
             );
+    }
+
+    function transferWinningBidTest(
+        address returnAddressL1
+    ) internal onlyAuctioneer  {
+        Oracle oracleRPC = Oracle(oracle);
+        oracleRPC.transferETH(
+            returnAddressL1,
+            privateKeysL1[auctionWinnerSuave]
+        );
     }
 
     /**
@@ -725,10 +734,9 @@ contract SealedAuction is Suapp {
      */
     function transferNFT(
         address returnAddressL1
-    ) internal isWinnerSuave returns (bytes memory) {
+    ) internal isWinnerSuave  {
         Oracle oracleRPC = Oracle(oracle);
-        return
-            oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
+        oracleRPC.transferNFT(nftHoldingAddress ,returnAddressL1, nftContract, tokenId, privateKeysL1[address(this)]);
     }
 
     /**
@@ -738,10 +746,9 @@ contract SealedAuction is Suapp {
      */
     function refundBid(
         address returnAddressL1
-    ) internal notWinnerSuave returns (bytes memory) {
+    ) internal notWinnerSuave {
         Oracle oracleRPC = Oracle(oracle);
-        return
-            oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
+        oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
     }
 
     // ===========================================================
@@ -763,7 +770,6 @@ contract SealedAuction is Suapp {
         returns (bytes memory)
     {
         Oracle oracleRPC = Oracle(oracle);
-        return
             oracleRPC.transferNFT(
                 nftHoldingAddress,
                 returnAddressL1,
@@ -771,6 +777,7 @@ contract SealedAuction is Suapp {
                 tokenId,
                 privateKeysL1[address(this)]
             );
+        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     /**
@@ -782,8 +789,8 @@ contract SealedAuction is Suapp {
         address returnAddressL1
     ) external confidential senderHasBid inBackOutTime returns (bytes memory) {
         Oracle oracleRPC = Oracle(oracle);
-        return
-            oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
+        oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
+        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     // ===========================================================

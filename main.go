@@ -356,6 +356,9 @@ func endAuction(contract *framework.Contract) {
 	} else {
 		fmt.Println("End auction results:")
 	}
+	fmt.Println("Auction took gas: ", receipt.GasUsed)
+	fmt.Println("Effective gas price: ", receipt.EffectiveGasPrice)
+	fmt.Println("Cumulative gas used: ", receipt.CumulativeGasUsed)
 	printReceipt(receipt, contract)
 }
 
@@ -750,8 +753,8 @@ func main3() {
 	returnWinningBid(winnerL1, contract)
 }
 
-func deployOracle() common.Address {
-	chainID := big.NewInt(TOLIMAN_SUAVE_TESTCHAIN_ID)
+func deployOracle() *framework.Contract {
+	chainID := big.NewInt(SEPOLIA_CHAIN_ID)
 	oracle := deployContractWithConstructor("Oracle.sol/Oracle.json", SuaveDevAccount, chainID)
 	api_key := os.Getenv("ALCHEMY_API_KEY")
 	if api_key == "" {
@@ -769,7 +772,7 @@ func deployOracle() common.Address {
 	if receipt.Status == types.ReceiptStatusSuccessful {
 		fmt.Println("ETHERSCAN_API Key registered")
 	}
-	return oracle.Raw().Address()
+	return oracle
 }
 
 func init() { // FOR TOLIMAN SUAVE CHAIN
@@ -796,7 +799,14 @@ func init() { // FOR TOLIMAN SUAVE CHAIN
 
 func main() {
 	// get contract
-	oracle := common.HexToAddress("0x8773E4e0F5EF8f26352EaedB31f280D5F3f58187") //deployOracle()
+	//sdk.SetDefaultGasLimit(10000000)
+
+	gasPrice, err := SuaveClient.SuggestGasPrice(context.Background())
+	checkError(err)
+	fmt.Println("Gas Price: ", gasPrice)
+	oracle := deployOracle().Raw().Address() //common.HexToAddress("0x797Ccf1286CFcc0E7679EdCB0Ecf2936F2D0747D") //
+	//testOracle()
+
 	add := ""
 	useExistingContract := common.HexToAddress(add)
 	var contract *framework.Contract
@@ -809,19 +819,20 @@ func main() {
 		fmt.Println("1. Using already deployed contract Sealed Auction contract on TOLIMAN SUAVE CHAIN: ", add)
 	} else {
 		fmt.Println("1. Deploy Sealed Auction contract on TOLIMAN SUAVE CHAIN")
-		auctionInSeconds := int64(100)
+		auctionInSeconds := int64(60)
 		auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
 		nftTokenID, minimalBiddingAmount := big.NewInt(1), big.NewInt(1000000000)
 		nftContractAddress := common.HexToAddress("0x166170D5246e697Bc3579003b85ce32d36831669")
 		contract = deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracle)
 	}
 
+	/* 	claim(contract)
+	   	return */
+
 	fmt.Println("2 Setup Auction")
 	setUpAuction(contract)
-
-	fmt.Println("4. Print Contract Info")
-	printContractInfo(contract)
-
+	/* 	fmt.Println("4.5. Get Priv key NFT")
+	   	getNFTprivateKey(contract) */
 	fmt.Println("4.5. Start Auction")
 	//startAuction(contract) //TODO: replace for this in final product
 	startAuctionTest(contract)
@@ -830,15 +841,29 @@ func main() {
 	printContractInfo(contract)
 
 	fmt.Println("6. getBiddingAddress")
-	biddingAddress := getBiddingAddress(contract)
+	privKeyBidder := os.Getenv("SUAVE_BIDDER_PRIVATE_KEY")
+	if privKeyBidder == "" {
+		log.Fatal("ENTER SUAVE_BIDDER_PRIVATE_KEY in .env file!")
+	}
+	SuaveBidderAccount := framework.NewPrivKeyFromHex(privKeyBidder)
+	fmt.Println("6.1. Place bid with account ", SuaveBidderAccount.Address())
+	bidContract := contract.Ref(SuaveBidderAccount)
+	biddingAddress := getBiddingAddress(bidContract)
 	fmt.Println("Bidding Address: ", biddingAddress)
-	time.Sleep(120 * time.Second)
+	time.Sleep(60 * time.Second)
 	// fundL1Account(common.HexToAddress(biddingAddress), big.NewInt(100000000000))
 	fmt.Println("7. end Auction")
 	endAuction(contract)
 
 	fmt.Println("8. Final Print Contract Info")
 	printContractInfo(contract)
+	time.Sleep(20 * time.Second)
+
+	fmt.Println("8. Get winning bid as auctioneer")
+	claim(contract)
+
+	fmt.Println("9 get NFT for winner")
+	claim(bidContract)
 	//--------------------------------------------------
 	//getNFTBack(contract)
 
@@ -862,6 +887,45 @@ func main() {
 
 		fmt.Println("3. Print Contract Info")
 		printContractInfo(contract) */
+}
+
+func claim(contract *framework.Contract) {
+	receipt := contract.SendConfidentialRequest("claim", []interface{}{SuaveDevAccount.Address()}, nil)
+	if receipt.Status == types.ReceiptStatusFailed {
+		log.Fatal("Claim failed")
+	} else {
+		fmt.Println("Claim successful")
+	}
+	printReceipt(receipt, contract)
+}
+func testOracle() {
+	var oracle *framework.Contract
+	add := ""
+	if add == "" {
+		oracle = deployOracle()
+	} else {
+		newClient := sdk.NewClient(SuaveClient.Client(), SuaveDevAccount.Priv, fr.KettleAddress)
+		artifact, err := framework.ReadArtifact("Oracle.sol/Oracle.json")
+		checkError(err)
+		contractSDK := sdk.GetContract(common.HexToAddress(add), artifact.Abi, newClient)
+		oracle = framework.CreateContract(common.HexToAddress(add), newClient, fr.KettleAddress, artifact.Abi, contractSDK)
+	}
+	timestamp := big.NewInt(time.Now().Unix())
+	receipt := oracle.SendConfidentialRequest("getNearestPreviousBlock2", []interface{}{timestamp}, nil)
+	printReceipt(receipt, oracle)
+	/* toCheck := common.HexToAddress("0x55475fF2Ea287F46879e8d47F3D45545f32C1313")
+	privKey := os.Getenv("L1_PRIVATE_KEY")
+	if privKey == "" {
+		log.Fatal("ENTER PRIVATE L1 KEY in .env file!")
+	}
+	fmt.Println("priv key ", privKey)
+	receipt := oracle.SendConfidentialRequest("transferETHTest", []interface{}{toCheck}, []byte(privKey))
+	if receipt.Status == types.ReceiptStatusSuccessful {
+		fmt.Println("Transfer successful")
+	} else {
+		fmt.Println("Failed to Transfer ETH test")
+	}
+	printReceipt(receipt, oracle) */
 }
 
 func getNFTBack(contract *framework.Contract) {

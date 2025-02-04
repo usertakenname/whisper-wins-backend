@@ -164,7 +164,7 @@ contract Oracle is Suapp {
         return NFTowner;
     }
 
-    function endAuction(
+    function endAuction( // deprecated use endAuction2
         address[] memory l1Addresses,
         uint256 endTimestamp
     ) external confidential returns (bytes memory) {
@@ -172,7 +172,7 @@ contract Oracle is Suapp {
         address currentMaxBidder = address(0);
         uint256 finalBlock = getNearestPreviousBlock(endTimestamp);
         for (uint256 i = 0; i < l1Addresses.length; i++) {
-            uint256 balance = getBalanceAtBlock(l1Addresses[i], finalBlock); 
+            uint256 balance = getBalanceAtBlock(l1Addresses[i], finalBlock);
             if (balance > currentMaxBid) {
                 currentMaxBid = balance;
                 currentMaxBidder = l1Addresses[i];
@@ -187,7 +187,7 @@ contract Oracle is Suapp {
             );
     }
 
-     function endAuction2(
+    function endAuction2(
         address[] memory l1Addresses,
         uint256 endTimestamp
     ) external confidential returns (uint256, address) {
@@ -195,7 +195,7 @@ contract Oracle is Suapp {
         address currentMaxBidder = address(0);
         uint256 finalBlock = getNearestPreviousBlock(endTimestamp);
         for (uint256 i = 0; i < l1Addresses.length; i++) {
-            uint256 balance = getBalanceAtBlock(l1Addresses[i], finalBlock); 
+            uint256 balance = getBalanceAtBlock(l1Addresses[i], finalBlock);
             if (balance > currentMaxBid) {
                 currentMaxBid = balance;
                 currentMaxBidder = l1Addresses[i];
@@ -210,7 +210,7 @@ contract Oracle is Suapp {
         address nftContract,
         uint256 tokenId,
         Suave.DataId suaveDataID
-    ) public returns (bytes memory) {
+    ) public {
         uint256 gasPrice = getGasPrice() * 2;
         bytes memory payload = abi.encodeWithSignature(
             "transferFrom(address,address,uint256)",
@@ -218,8 +218,8 @@ contract Oracle is Suapp {
             to,
             tokenId
         );
-
-        return
+        uint256 value = getBalance(from);
+        if (value >= 81000 * gasPrice) {
             makeTransaction(
                 nftContract,
                 80000,
@@ -228,12 +228,23 @@ contract Oracle is Suapp {
                 payload,
                 suaveDataID
             );
+        } else {
+            emit testEvent(
+                string.concat(
+                    "The account ",
+                    toHexString(abi.encodePacked(from)),
+                    " with balance: ",
+                    toString(value),
+                    " does not have enough funds to transfer the NFT"
+                )
+            );
+        }
     }
 
     function transferETH(
         address returnAddress,
         Suave.DataId suaveDataID
-    ) external returns (bytes memory) {
+    ) external {
         bytes memory privateL1Key = Suave.confidentialRetrieve(
             suaveDataID,
             PRIVATE_KEYS
@@ -250,16 +261,20 @@ contract Oracle is Suapp {
                 "",
                 suaveDataID
             );
-            return abi.encodeWithSelector(this.onchainCallback.selector);
         } else {
-            revert(
+            emit testEvent(
                 string.concat(
-                    "Funds too less to pay out bids at address: ",
-                    toHexString(abi.encodePacked(publicL1Address))
+                    "The account ",
+                    toHexString(abi.encodePacked(publicL1Address)),
+                    " with balance: ",
+                    toString(value),
+                    " does not have enough funds to transfer ETH"
                 )
             );
         }
     }
+
+    event testEvent(string test);
 
     function transferETHForNFT(
         address returnAddress,
@@ -269,10 +284,11 @@ contract Oracle is Suapp {
             suaveDataID,
             PRIVATE_KEYS
         );
-        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
+        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));  
         uint256 gasPrice = getGasPrice() * 2;
         uint256 value = getBalance(publicL1Address);
         if (value >= 101000 * gasPrice) {
+            emit testEvent(string.concat("Funding the NFT Holding address with: ", toString(80000 * gasPrice)));
             makeTransaction(
                 returnAddress,
                 21000,
@@ -281,17 +297,14 @@ contract Oracle is Suapp {
                 "",
                 suaveDataID
             );
-        }
-        // TODO: only for debug => remove else branch
-        else {
-            revert(
+        } else {
+            emit testEvent(
                 string.concat(
-                    "Funds too less to pay out bids at address: ",
+                    "The account ",
                     toHexString(abi.encodePacked(publicL1Address)),
-                    "\nhas: ",
+                    " with balance: ",
                     toString(value),
-                    "\tneeds: ",
-                    toString(101000 * gasPrice)
+                    " does not have enough funds to transfer ETH"
                 )
             );
         }
@@ -417,7 +430,7 @@ contract Oracle is Suapp {
         uint256 value,
         bytes memory payload,
         Suave.DataId suaveDataID
-    ) internal alchemyKeyStored returns (bytes memory) {
+    ) internal alchemyKeyStored {
         bytes memory privateL1Key = Suave.confidentialRetrieve(
             suaveDataID,
             PRIVATE_KEYS
@@ -435,7 +448,6 @@ contract Oracle is Suapp {
                 data: payload,
                 chainId: chainID
             });
-
         Transactions.EIP155 memory txn = Transactions.signTxn(
             txnWithToAddress,
             string(privateL1Key)
@@ -443,8 +455,6 @@ contract Oracle is Suapp {
         bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
 
         sendRawTxHttpRequest(rlpEncodedTxn);
-
-        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     // =============================================================
@@ -462,7 +472,7 @@ contract Oracle is Suapp {
         return
             Suave.doHTTPRequest(
                 Suave.HttpRequest({
-                    url: getRPCEndpointURL(), 
+                    url: getRPCEndpointURL(),
                     method: "POST",
                     headers: getHeaders(),
                     body: _body,
