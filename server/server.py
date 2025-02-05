@@ -28,6 +28,8 @@ def handle_error(contract_address,rerun):
     else:
         print("Winner: ", result.stdout)
 
+# one can simply register a contract via a POST request => no DoS strategy / access control in place as this is a toy example
+# => possibility for someone registering a malicious contract which exploits our contract interaction to drain our funds
 @app.route('/register-contract', methods=['POST'])
 def register_contract():
     data = request.get_json()
@@ -48,19 +50,3 @@ def register_contract():
 if __name__ == '__main__':
     scheduler.run()
     app.run(debug=True, port=8001)  # Run on port 8001
-
-
-
-
-
-""" @app.route('/start-auction', methods=['GET', 'POST'])
-def start_auction():
-    # Optional: Check request data (if needed)
-    if request.method == 'POST':
-        data = request.get_json()  # Retrieve JSON data from the POST request
-        print("Received data:", data)
-        result = subprocess.run(["go", "run", "script.go", data.get("contract")], capture_output=True, text=True)
-        return jsonify({"message": result.stdout, "error": result.stderr})  # Return a response
-
-    else:
-         return jsonify({"message": "No data provided"})  # Return a response """

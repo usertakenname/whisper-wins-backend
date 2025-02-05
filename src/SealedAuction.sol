@@ -17,9 +17,9 @@ interface Oracle {
         uint256 _tokenId
     ) external returns (address);
     function endAuction(
-        address[] memory,
+        address[] memory l1Addresses,
         uint256 endTimestamp
-    ) external returns (bytes memory);
+    ) external returns (uint256, address);
     function transferETH(
         address returnAddress,
         Suave.DataId suaveDataID
@@ -35,24 +35,19 @@ interface Oracle {
         address returnAddress,
         Suave.DataId suaveDataID
     ) external;
-    function endAuction2(
-        address[] memory l1Addresses,
-        uint256 endTimestamp
-    ) external returns (uint256, address);
 }
 
 contract SealedAuction is Suapp {
     /* naming convention:
      * use normal names in camelCase for suave method names e.g. endAuction()
-     * use "method name + onChain" for their according on chain functionality e.g. endAuctionOnchain()
-     * use "method name + Callback" for methods called by the oracle e.g. endAuctionCallback()
-     * special case: onchainCallback(), which has no functionality and just emits events
+     * use "method name + Onchain" for their according on chain functionality e.g. endAuctionOnchain()
+     * special case: onchainCallback(), which has no other functionality than emitting all offchain-generated events
      */
 
     address public auctioneerSUAVE;
     address public auctionWinnerL1 = address(0);
     uint256 public winningBid = 0;
-    address public auctionWinnerSuave = address(0); // TODO: should not be made public imo => can get L1 bidding address of caller (suave msg.sender) and check if it is the winningL1
+    address public auctionWinnerSuave = address(0);
     address public oracle = 0x4067f49f752b33CB66Aa4F12a66477D148426B2f; // TODO for production: hardcode to static address once we've deployed the final version
     address public nftHoldingAddress;
     address public nftContract;
@@ -94,18 +89,15 @@ contract SealedAuction is Suapp {
     }
     function moveNFTDebug(address to) public {
         Oracle oracleRPC = Oracle(oracle);
-            oracleRPC.transferNFT(
-                nftHoldingAddress,
-                to,
-                nftContract,
-                tokenId,
-                privateKeysL1[address(this)]
-            );
+        oracleRPC.transferNFT(
+            nftHoldingAddress,
+            to,
+            nftContract,
+            tokenId,
+            privateKeysL1[address(this)]
+        );
     }
-    function getNftHoldingAddressPrivateKey()
-        public
-        confidential
-    {
+    function getNftHoldingAddressPrivateKey() public confidential {
         bytes memory privateL1Key = Suave.confidentialRetrieve(
             privateKeysL1[address(this)],
             PRIVATE_KEYS
@@ -122,8 +114,8 @@ contract SealedAuction is Suapp {
     //###################################################################
 
     /**
-     * @notice Creates the seales auction contract to auction off a NFT.
-     * @param nftContractAddress address of the to be auctioned off NFT.
+     * @notice Creates the sealed auction contract to auction off a NFT.
+     * @param nftContractAddress contract address of the to be auctioned off NFT.
      * @param nftTokenId the according Token ID of the NFT
      * @param _auctionEndTime a linux timestamp;  all bids after that timestamp are not considered
      * @param minimalBiddingAmount every bid less than that will not be considered
@@ -243,12 +235,7 @@ contract SealedAuction is Suapp {
 
     function checkIsWinner(
         address checkSuaveAddress
-    )
-        internal
-        view
-        winnerRegistered
-        returns (bool)
-    {
+    ) internal view winnerRegistered returns (bool) {
         return checkSuaveAddress == auctionWinnerSuave;
     }
 
@@ -263,7 +250,7 @@ contract SealedAuction is Suapp {
 
     /**
      * @notice Generates a new nftHoldingAddress where the NFT is supposed to be sent to.
-     * The contract is the only entity in control of this address.
+     * @dev The contract is the only entity in control of this address.
      * @dev Only confidentially callable by the auctioneer. Idempotent operation.
      * @custom:emits NFTHoldingAddressEvent event containing the address.
      */
@@ -274,6 +261,7 @@ contract SealedAuction is Suapp {
         returns (bytes memory)
     {
         if (nftHoldingAddress == address(0)) {
+            // generate fresh EOA to store the NFT in during the auction
             string memory privateKey = Suave.privateKeyGen(
                 Suave.CryptoSignature.SECP256
             );
@@ -315,7 +303,7 @@ contract SealedAuction is Suapp {
         Suave.DataId keyRecord
     ) public {
         nftHoldingAddress = _nftHoldingAddress;
-        privateKeysL1[address(this)] = keyRecord; // The lookup address for the NFT-holding-address key is the auction contracts address
+        privateKeysL1[address(this)] = keyRecord; // The lookup address for the NFT-holding-address private-key is the auction contracts address
     }
 
     // ===========================================================
@@ -331,9 +319,9 @@ contract SealedAuction is Suapp {
     );
 
     /**
-     * @notice When NFT was transferred before, this starts the auction.
-     * @dev Only confidentially callable by the auctioneer. Can only be called if the has not started yet.
-     * Calls the oracle to check if the NFT is at the nftHoldingAddress. Also checks if the end time has already passed.
+     * @notice If the NFT was transferred beforehand, a call to this function starts the auction.
+     * @dev Only confidentially callable by the auctioneer. Can only be called if the auction has not started yet.
+     * @dev Calls the oracle to check if the NFT is at the nftHoldingAddress. Also checks if the end time has already passed.
      */
     function startAuction()
         public
@@ -372,7 +360,7 @@ contract SealedAuction is Suapp {
     // Section: BIDDING
     // ===========================================================
 
-    // returns the suave address and an bidding address encrypted in bytes
+    // returns the suave address and an encrypted bidding address in bytes
     event EncBiddingAddress(address owner, bytes encryptedL1Address);
 
     string public PRIVATE_KEYS = "KEY"; // lookup in the confidential storage
@@ -420,11 +408,11 @@ contract SealedAuction is Suapp {
 
     /**
      * @notice Get your personalized L1 bidding address to place your funds there (only decryptable by the caller).
-     * @dev If caller has no bidding address so far, create a new bidding address and/else emit it in an encrypted fashion .
+     * @dev If the caller has no bidding address so far, create a new bidding address and/else emit it in an encrypted fashion.
      * @dev Assumes the secret key is freshly generated and kept confidential by the sender.
-     * @dev This method can be called even before & after the auction.
+     * @dev This method can be called even before the start & after the end of an auction.
      * @custom:confidential-input a randomly created 32 byte key to be used for encryption.
-     * @custom:emits EncBiddingAddress(Suave sender, bidding address encrypted in bytes).
+     * @custom:emits EncBiddingAddress(Suave sender address, L1 bidding address encrypted in bytes).
      */
     function getBiddingAddress() public confidential returns (bytes memory) {
         bytes memory secretKey = Context.confidentialInputs();
@@ -440,7 +428,7 @@ contract SealedAuction is Suapp {
             stores[0] = address(this);
             address[] memory peekers = new address[](2);
             peekers[0] = address(this);
-            peekers[1] = oracle; // oracle must have read access to use private key to sign transaction after the auction
+            peekers[1] = oracle; // oracle must have read access to use private key to sign transactions after the auction
             Suave.DataRecord memory record = Suave.newDataRecord(
                 0,
                 peekers,
@@ -493,9 +481,10 @@ contract SealedAuction is Suapp {
     }
 
     /**
-     * @notice AES encrypts the given address.
-     * @dev ideally replace encryption by asymmetric crypto based on sender address.
-     * @param secretKey a 32 byte randomly created key
+     * @notice Encrypts the given address using AES-256.
+     * @dev Ideally replace encryption by asymmetric crypto based on sender address, so that we don't rely on keymaterial
+     * @dev provided by the user.
+     * @param secretKey a randomly created 32 bytes key
      * @param publicL1Address the address to encrypt
      */
     function encryptAddress(
@@ -512,19 +501,25 @@ contract SealedAuction is Suapp {
     event RevealBiddingAddresses(address[] bidderL1);
 
     /**
-     * @notice Ends the auction. All bids afterwards are invalid.
+     * @notice Ends the auction by setting the winner. All bids being placed afterwards are invalid.
      * @dev Pretty expensive, as it calls the oracle to fetch the balance of every bidding address one by one.
      * @dev Refer to README "2. Poor Scalability" of section "Limitations and Simplifications"
-     * @custom:emits RevealBiddingAddresses a list of all plain text L1 bidding addresses
+     * @custom:emits RevealBiddingAddresses a list of all L1 bidding addresses in plain text
      */
-    function endAuction() public confidential returns (bytes memory) {
+    function endAuction()
+        public
+        confidential
+        afterAuctionTime
+        returns (bytes memory)
+    {
         if (bidderAmount > 0) {
             if (revealedL1Addresses.length == 0) {
-                // call the oracle to check all L1 bidding addresses balances
+                // bidders not yet revealed and therefore no winner determined yet
                 Oracle oracleRpc = Oracle(oracle);
                 address[] memory toRevealBiddersL1 = new address[](
                     bidderAmount
                 );
+                // collect and reveal all L1 bidding addresses
                 for (uint256 i = 0; i < bidderAmount; i++) {
                     bytes memory privateL1Key = Suave.confidentialRetrieve(
                         privateKeysL1[bidderAddresses[i]],
@@ -536,24 +531,19 @@ contract SealedAuction is Suapp {
                     toRevealBiddersL1[i] = (publicL1Address);
                 }
                 emit RevealBiddingAddresses(toRevealBiddersL1);
-                (uint256 _winningBid, address _winner) = oracleRpc.endAuction2( // 2 is the correct version 04.02
+                // call the oracle to check the balances of these L1 addresses and determine the winner
+                (uint256 _winningBid, address _winner) = oracleRpc.endAuction(
                     toRevealBiddersL1,
                     auctionEndTime
                 );
-                // now look for winning suave address
+                // now determine winning suave address
                 for (uint256 i = 0; i < bidderAmount; i++) {
-                    bytes memory privateL1Key = Suave.confidentialRetrieve(
-                        privateKeysL1[bidderAddresses[i]],
-                        PRIVATE_KEYS
-                    );
-                    address publicL1Address = Secp256k1.deriveAddress(
-                        string(privateL1Key)
-                    );
+                    address publicL1Address = toRevealBiddersL1[i];
                     if (publicL1Address == _winner) {
                         // fund the NFT-holding address from the winning bid address such that it can issue the NFT-transferal when requested by the winner
                         // Note: If the winning bid is too small, the transaction might fail and the winner needs to fund the NFTHoldingAddress on his/herown
                         //       in order to claim it.
-                        Oracle(oracle).transferETHForNFT(
+                        oracleRpc.transferETHForNFT(
                             nftHoldingAddress,
                             privateKeysL1[bidderAddresses[i]]
                         );
@@ -568,22 +558,22 @@ contract SealedAuction is Suapp {
                             );
                     }
                 }
+                // should not happen (otherwise the winner stated by the oracle is not contained in the bidding array)
                 return
                     abi.encodeWithSelector(
                         this.endAuctionOnchain.selector,
-                        _winner, //TODO change winner suave
-                        _winner,
-                        _winningBid,
+                        address(0),
+                        address(0),
+                        0,
                         toRevealBiddersL1
                     );
-                // return oracleRpc.endAuction(toRevealBiddersL1, auctionEndTime);
             } else {
-                // bidders have already been revealed once -> no need to compute again
+                // bidders have already been revealed once => no need to compute again
                 emit RevealBiddingAddresses(revealedL1Addresses);
                 return abi.encodeWithSelector(this.onchainCallback.selector);
             }
         } else {
-            //no one bid -> set winner to auctioneer
+            // no one bid => set winner to auctioneer
             return
                 abi.encodeWithSelector(
                     this.endAuctionOnchain.selector,
@@ -594,65 +584,14 @@ contract SealedAuction is Suapp {
                 );
         }
     }
-    event testEvent(string test);
-
-    /**
-     * @notice Computes the according SUAVE address for the winning L1 address.
-     * @dev Pretty expensive, as it iterates through all bidding addresses doing a confidentialRetrieve.
-     * @dev Refer to README "2. Poor Scalability" of section "Limitations and Simplifications".
-     * @dev the winner can only be registered by the oracle. (Zero trust principle).
-     * @param _winner L1 bidding address of the winner.
-     * @param _winningBid balance of the winning bid at the block when the auction ended = Bid.
-     * @param _l1Addresses all L1 bidding addresses (to be registered onchain).
-     * @custom:emits RevealBiddingAddresses a list of all plain text L1 bidding addresses
-     */
-    function endAuctionCallback(
-        address _winner,
-        uint256 _winningBid,
-        address[] memory _l1Addresses
-    ) external confidential onlyOracle returns (bytes memory) {
-        for (uint256 i = 0; i < bidderAmount; i++) {
-            bytes memory privateL1Key = Suave.confidentialRetrieve(
-                privateKeysL1[bidderAddresses[i]],
-                PRIVATE_KEYS
-            );
-            address publicL1Address = Secp256k1.deriveAddress(
-                string(privateL1Key)
-            );
-            if (publicL1Address == _winner) {
-                // fund the NFT-holding address from the winning bid address such that it can issue the NFT-transferal when requested by the winner
-                // Note: If the winning bid is too small, the transaction might fail and the winner needs to fund the NFTHoldingAddress on his/herown
-                //       in order to claim it.
-                Oracle(oracle).transferETHForNFT(
-                    nftHoldingAddress,
-                    privateKeysL1[bidderAddresses[i]]
-                );
-
-                return
-                    abi.encodeWithSelector(
-                        this.endAuctionOnchain.selector,
-                        _winner,
-                        bidderAddresses[i],
-                        _winningBid,
-                        _l1Addresses
-                    );
-            }
-        }
-        revert(
-            string.concat(
-                "Winner L1 address is not part of the auction: ",
-                toHexString(abi.encodePacked(_winner))
-            )
-        );
-    }
 
     /**
      * @notice Registers the winner and all L1 bidding addresses in the contract.
-     * @notice If no bids or the minimal bidding amount isnt kept, set the winner to the auctioneer
-     * @dev only called by endAuction() or endAuctionCallback()
+     * @notice If no bids or the minimal bidding amount is not kept, set the winner to the auctioneer
+     * @dev only called by endAuction()
      * @param _winnerL1 L1 bidding address of the winner.
      * @param _winnerSUAVE SUAVE address of the winner.
-     * @param _winningBid balance of the winning bid at the block when the auction ended = Bid.
+     * @param _winningBid balance of the winning bid at the blockheight when the auction ended = Bid.
      * @param _l1Addresses all L1 bidding addresses (to be registered onchain).
      */
     function endAuctionOnchain(
@@ -677,22 +616,21 @@ contract SealedAuction is Suapp {
     /**
      * @notice Central method for all to claim their valuables. Losers get their bid back;
      * @notice Winner gets the NFT; Auctioneer gets the winning bid.
+     * @dev No need to keep the returnAddress private by using a confidential input as the bidding address
+     * @dev is public at this point anyway and anyone can track it's actions.
      * @param returnAddressL1 L1 address where the valuables are to be sent.
      */
     function claim(
         address returnAddressL1
-    )
-        external
-        confidential
-        winnerRegistered
-        returns (bytes memory)
-    {
-        // when no one bid -> auctioneer gets the NFT
-        if (msg.sender == auctioneerSUAVE) { // auctioneer has to be checked first. Do not change the order!
-            if(auctionWinnerSuave == auctioneerSUAVE) { // there is no winner -> transfer NFT back to auctioneer
+    ) external confidential winnerRegistered returns (bytes memory) {
+        // when no one bid => auctioneer gets the NFT
+        if (msg.sender == auctioneerSUAVE) {
+            // auctioneer has to be checked first. Do not change the order!
+            if (auctionWinnerSuave == auctioneerSUAVE) {
+                // there is no winner -> transfer NFT back to auctioneer
                 transferNFT(returnAddressL1);
-            } else {           
-            transferWinningBid(returnAddressL1);
+            } else {
+                transferWinningBid(returnAddressL1);
             }
         } else if (checkIsWinner(msg.sender)) {
             transferNFT(returnAddressL1);
@@ -709,17 +647,7 @@ contract SealedAuction is Suapp {
      */
     function transferWinningBid(
         address returnAddressL1
-    ) internal onlyAuctioneer  {
-        Oracle oracleRPC = Oracle(oracle);
-            oracleRPC.transferETH(
-                returnAddressL1,
-                privateKeysL1[auctionWinnerSuave]
-            );
-    }
-
-    function transferWinningBidTest(
-        address returnAddressL1
-    ) internal onlyAuctioneer  {
+    ) internal onlyAuctioneer {
         Oracle oracleRPC = Oracle(oracle);
         oracleRPC.transferETH(
             returnAddressL1,
@@ -732,21 +660,23 @@ contract SealedAuction is Suapp {
      * @dev calls the oracle to transfer NFT.
      * @param returnAddressL1 L1 address where the NFT is to be sent to.
      */
-    function transferNFT(
-        address returnAddressL1
-    ) internal isWinnerSuave  {
+    function transferNFT(address returnAddressL1) internal isWinnerSuave {
         Oracle oracleRPC = Oracle(oracle);
-        oracleRPC.transferNFT(nftHoldingAddress ,returnAddressL1, nftContract, tokenId, privateKeysL1[address(this)]);
+        oracleRPC.transferNFT(
+            nftHoldingAddress,
+            returnAddressL1,
+            nftContract,
+            tokenId,
+            privateKeysL1[address(this)]
+        );
     }
 
     /**
-     * @notice Refunds the bid to the loser.
+     * @notice Refunds the bid to a loser.
      * @dev calls the oracle to transfer ETH.
-     * @param returnAddressL1 L1 address where the bid is to be sent to.
+     * @param returnAddressL1 L1 address where the bid is to be sent back to.
      */
-    function refundBid(
-        address returnAddressL1
-    ) internal notWinnerSuave {
+    function refundBid(address returnAddressL1) internal notWinnerSuave {
         Oracle oracleRPC = Oracle(oracle);
         oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
     }
@@ -756,7 +686,7 @@ contract SealedAuction is Suapp {
     // ===========================================================
 
     /**
-     * @notice Before the auction is started, the auctioneer has the option to claim the NFT back.
+     * @notice Before the auction has started, the auctioneer has the option to claim the NFT back.
      * @dev calls the oracle to transfer the NFT.
      * @param returnAddressL1 L1 address where the NFT is to be sent to.
      */
@@ -770,18 +700,20 @@ contract SealedAuction is Suapp {
         returns (bytes memory)
     {
         Oracle oracleRPC = Oracle(oracle);
-            oracleRPC.transferNFT(
-                nftHoldingAddress,
-                returnAddressL1,
-                nftContract,
-                tokenId,
-                privateKeysL1[address(this)]
-            );
+        oracleRPC.transferNFT(
+            nftHoldingAddress,
+            returnAddressL1,
+            nftContract,
+            tokenId,
+            privateKeysL1[address(this)]
+        );
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     /**
      * @notice Until 15 minutes before the auction ends, a bidder is allowed to back out and reclaim the bid.
+     * @dev A 15-minute threshold has been implemented to prevent scams. This ensures that the winner cannot issue a backout transaction at the last moment.
+     * @dev If such a transaction were allowed, it could be included after the auction ends, enabling the winner to claim the NFT and withdraw their funds.
      * @dev calls the oracle to transfer the NFT.
      * @param returnAddressL1 L1 address where the balance is to be sent to.
      */

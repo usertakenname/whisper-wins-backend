@@ -9,15 +9,6 @@ import "solady/src/utils/JSONParserLib.sol";
 import "suave-std/crypto/Secp256k1.sol";
 import "suave-std/Transactions.sol";
 
-interface SealedAuction {
-    function endAuctionCallback(
-        address _winner,
-        uint256 _winningBid,
-        address[] memory _l1Addresses
-    ) external returns (bytes memory);
-    function confirmNFTowner(address _NFTowner) external returns (bytes memory);
-}
-
 contract Oracle is Suapp {
     address public owner;
     uint256 public chainID;
@@ -45,7 +36,7 @@ contract Oracle is Suapp {
     function onchainCallback() public emitOffchainLogs {}
 
     // =============================================================
-    //        FUNCTIONALITY: REGISTER API-KEYS FOR RPC ENDPOINTS
+    // FUNCTIONALITY: REGISTER API-KEYS FOR RPC ENDPOINTS
     // =============================================================
 
     modifier alchemyKeyStored() {
@@ -72,7 +63,6 @@ contract Oracle is Suapp {
      * @notice Registers off-chain an API key in the Suave Confidential Storage.
      * @dev Only confidentially callable by the owner of the contract with confidential input.
      * @custom:confidential-input API_KEY Confidential input is the API key.
-     * @return Nothing.
      */
     function registerApiKeyOffchain(
         string memory rpcName
@@ -84,9 +74,9 @@ contract Oracle is Suapp {
 
         Suave.DataRecord memory record = Suave.newDataRecord(
             0,
-            peekers, // Addresses allowed to read the data
-            peekers, // Addresses allowed to manage the data
-            RPC // Label or identifier for the data
+            peekers,
+            peekers,
+            RPC
         );
 
         Suave.confidentialStore(record.id, RPC, rpcData);
@@ -100,7 +90,7 @@ contract Oracle is Suapp {
 
     /**
      * @notice Callback for API key registration.
-     * @dev Function should only be called by registerApiKeyOffchain, not externally. (Can not be made internal as Suave currently offers no alternatives)
+     * @dev Function should only be called by registerApiKeyOffchain, not externally.
      * @param _rpcRecord The Suave DataID to look up the API Key in the Confidential Storage.
      */
     function registerApiKeyOnchain(
@@ -133,7 +123,7 @@ contract Oracle is Suapp {
     }
 
     // =============================================================
-    //           FUNCTIONALITY: "API" FOR SEALED AUCTIONS
+    // FUNCTIONALITY: "API" FOR SEALED AUCTIONS
     // =============================================================
 
     function getNFTOwnedBy(
@@ -164,30 +154,7 @@ contract Oracle is Suapp {
         return NFTowner;
     }
 
-    function endAuction( // deprecated use endAuction2
-        address[] memory l1Addresses,
-        uint256 endTimestamp
-    ) external confidential returns (bytes memory) {
-        uint256 currentMaxBid = 0;
-        address currentMaxBidder = address(0);
-        uint256 finalBlock = getNearestPreviousBlock(endTimestamp);
-        for (uint256 i = 0; i < l1Addresses.length; i++) {
-            uint256 balance = getBalanceAtBlock(l1Addresses[i], finalBlock);
-            if (balance > currentMaxBid) {
-                currentMaxBid = balance;
-                currentMaxBidder = l1Addresses[i];
-            }
-        }
-        SealedAuction sealedAuction = SealedAuction(msg.sender);
-        return
-            sealedAuction.endAuctionCallback(
-                currentMaxBidder,
-                currentMaxBid,
-                l1Addresses
-            );
-    }
-
-    function endAuction2(
+    function endAuction(
         address[] memory l1Addresses,
         uint256 endTimestamp
     ) external confidential returns (uint256, address) {
@@ -229,7 +196,7 @@ contract Oracle is Suapp {
                 suaveDataID
             );
         } else {
-            emit testEvent(
+            revert(
                 string.concat(
                     "The account ",
                     toHexString(abi.encodePacked(from)),
@@ -262,7 +229,7 @@ contract Oracle is Suapp {
                 suaveDataID
             );
         } else {
-            emit testEvent(
+            revert(
                 string.concat(
                     "The account ",
                     toHexString(abi.encodePacked(publicL1Address)),
@@ -273,8 +240,6 @@ contract Oracle is Suapp {
             );
         }
     }
-
-    event testEvent(string test);
 
     function transferETHForNFT(
         address returnAddress,
@@ -284,11 +249,11 @@ contract Oracle is Suapp {
             suaveDataID,
             PRIVATE_KEYS
         );
-        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));  
+        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
         uint256 gasPrice = getGasPrice() * 2;
         uint256 value = getBalance(publicL1Address);
+        // in order to issue a NFT-transfer we need ~80,000 gas, to issue an ETH-transfer 21,000 => 101,000
         if (value >= 101000 * gasPrice) {
-            emit testEvent(string.concat("Funding the NFT Holding address with: ", toString(80000 * gasPrice)));
             makeTransaction(
                 returnAddress,
                 21000,
@@ -297,21 +262,11 @@ contract Oracle is Suapp {
                 "",
                 suaveDataID
             );
-        } else {
-            emit testEvent(
-                string.concat(
-                    "The account ",
-                    toHexString(abi.encodePacked(publicL1Address)),
-                    " with balance: ",
-                    toString(value),
-                    " does not have enough funds to transfer ETH"
-                )
-            );
         }
     }
 
     // =============================================================
-    //                  FUNCTIONALITY: RPC Calls
+    // FUNCTIONALITY: RPC Calls
     // =============================================================
 
     function getNonce(
@@ -458,7 +413,7 @@ contract Oracle is Suapp {
     }
 
     // =============================================================
-    //                  HTTPS UTILITIES
+    // HTTPS UTILITIES
     // =============================================================
     function getHeaders() internal pure returns (string[] memory) {
         string[] memory headers = new string[](1);
@@ -512,7 +467,7 @@ contract Oracle is Suapp {
     }
 
     // =============================================================
-    //                  HELPER FUNCTIONALITY
+    // HELPER FUNCTIONALITY
     // =============================================================
 
     /**
