@@ -258,7 +258,7 @@ contract Oracle is Suapp {
                 returnAddress,
                 21000,
                 gasPrice,
-                80000 * gasPrice,
+                80000 * (gasPrice * 2), // overapproximation out of stability reasons
                 "",
                 suaveDataID
             );
