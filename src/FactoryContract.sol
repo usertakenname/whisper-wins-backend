@@ -78,9 +78,8 @@ contract FactoryContract is Suapp {
             address(0),
             0,
             0,
-            0,
-            address(0)
-        );
+            0
+            );
         /*         Suave.confidentialStore(
             signingKeyRecord,
             AUCTION_CONTRACTS,

@@ -48,7 +48,7 @@ contract SealedAuction is Suapp {
     address public auctionWinnerL1 = address(0);
     uint256 public winningBid = 0;
     address public auctionWinnerSuave = address(0);
-    address public oracle = 0x4067f49f752b33CB66Aa4F12a66477D148426B2f; // TODO for production: hardcode to static address once we've deployed the final version
+    address public oracle = 0xA63F7384D19aa9Ad6E13A5c3b14D0AeadacC8B2c;
     address public nftHoldingAddress;
     address public nftContract;
     uint256 public tokenId;
@@ -56,63 +56,7 @@ contract SealedAuction is Suapp {
     uint256 public minimalBid;
     bool public auctionHasStarted = false;
 
-    // ####################################################################
-    // TODO delete - debugging only
-    event AuctionInfo(
-        address auctioneerSUAVE,
-        address nftHoldingAddress,
-        address nftContract,
-        uint256 tokenId,
-        uint256 auctionEndTime,
-        uint256 minimalBid,
-        bool auctionHasStarted,
-        address auctionWinnerL1,
-        address auctionWinnerSuave,
-        uint256 winningBid,
-        address[] revealedL1Addresses
-    );
-    function printInfo() public returns (bytes memory) {
-        emit AuctionInfo(
-            auctioneerSUAVE,
-            nftHoldingAddress,
-            nftContract,
-            tokenId,
-            auctionEndTime,
-            minimalBid,
-            auctionHasStarted,
-            auctionWinnerL1,
-            auctionWinnerSuave,
-            winningBid,
-            revealedL1Addresses
-        );
-        return abi.encodeWithSelector(this.onchainCallback.selector);
-    }
-    function moveNFTDebug(address to) public {
-        Oracle oracleRPC = Oracle(oracle);
-        oracleRPC.transferNFT(
-            nftHoldingAddress,
-            to,
-            nftContract,
-            tokenId,
-            privateKeysL1[address(this)]
-        );
-    }
-    function getNftHoldingAddressPrivateKey() public confidential {
-        bytes memory privateL1Key = Suave.confidentialRetrieve(
-            privateKeysL1[address(this)],
-            PRIVATE_KEYS
-        );
-        emit NFTHoldingAddressPrivateKeyEvent(string(privateL1Key));
-    }
-    event NFTHoldingAddressPrivateKeyEvent(string privateKey);
-
-    // TODO: delete this after we deploy a nft contract in go script and have nft transfers in there
-    function startAuctionTest() public pure returns (bytes memory) {
-        return abi.encodeWithSelector(this.startAuctionOnchain.selector);
-    }
-    // debugging end
-    //###################################################################
-
+   
     /**
      * @notice Creates the sealed auction contract to auction off a NFT.
      * @param nftContractAddress contract address of the to be auctioned off NFT.
@@ -124,15 +68,13 @@ contract SealedAuction is Suapp {
         address nftContractAddress,
         uint256 nftTokenId,
         uint256 _auctionEndTime,
-        uint256 minimalBiddingAmount,
-        address oracleAddress //TODO for production: delete from constructor once it is static
+        uint256 minimalBiddingAmount
     ) {
         auctioneerSUAVE = msg.sender;
         nftContract = nftContractAddress;
         tokenId = nftTokenId;
         auctionEndTime = _auctionEndTime;
         minimalBid = minimalBiddingAmount;
-        oracle = oracleAddress; //TODO for production: delete from constructor once it is static
     }
 
     // ===========================================================

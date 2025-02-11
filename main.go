@@ -823,7 +823,7 @@ func main() {
 		auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
 		nftTokenID, minimalBiddingAmount := big.NewInt(1), big.NewInt(1000000000)
 		nftContractAddress := common.HexToAddress("0x166170D5246e697Bc3579003b85ce32d36831669")
-		contract = deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracle)
+		contract = deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount)
 	}
 
 	/* 	claim(contract)
@@ -831,8 +831,8 @@ func main() {
 
 	fmt.Println("2 Setup Auction")
 	setUpAuction(contract)
-	/* 	fmt.Println("4.5. Get Priv key NFT")
-	   	getNFTprivateKey(contract) */
+	// 	fmt.Println("4.5. Get Priv key NFT")
+	// 	getNFTprivateKey(contract)
 	fmt.Println("4.5. Start Auction")
 	//startAuction(contract) //TODO: replace for this in final product
 	startAuctionTest(contract)
@@ -845,14 +845,24 @@ func main() {
 	if privKeyBidder == "" {
 		log.Fatal("ENTER SUAVE_BIDDER_PRIVATE_KEY in .env file!")
 	}
-	SuaveBidderAccount := framework.NewPrivKeyFromHex(privKeyBidder)
-	fmt.Println("6.1. Place bid with account ", SuaveBidderAccount.Address())
-	bidContract := contract.Ref(SuaveBidderAccount)
-	biddingAddress := getBiddingAddress(bidContract)
-	fmt.Println("Bidding Address: ", biddingAddress)
-	time.Sleep(60 * time.Second)
+	num_accounts := 2
+	fmt.Println("6.1. Place bid with account ", num_accounts, " accounts")
+	bidders := make([]*framework.PrivKey, 0)
+	sdk.SetDefaultGasLimit(1000000)
+	for i := 0; i < num_accounts; i++ {
+		fmt.Println("Creating account #", i)
+		bidders = append(bidders, framework.GeneratePrivKey())
+		err := fr.Suave.FundAccount(bidders[i].Address(), big.NewInt(10000000000000000))
+		checkError(err)
+		bidContract := contract.Ref(bidders[i])
+		getBiddingAddress(bidContract)
+	}
 	// fundL1Account(common.HexToAddress(biddingAddress), big.NewInt(100000000000))
+	sdk.SetDefaultGasLimit(0)
+
 	fmt.Println("7. end Auction")
+	time.Sleep(20 * time.Second)
+
 	endAuction(contract)
 
 	fmt.Println("8. Final Print Contract Info")
@@ -863,7 +873,7 @@ func main() {
 	claim(contract)
 
 	fmt.Println("9 get NFT for winner")
-	claim(bidContract)
+	//claim(bidContract)
 	//--------------------------------------------------
 	//getNFTBack(contract)
 
