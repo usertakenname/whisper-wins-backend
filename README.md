@@ -5,6 +5,10 @@ Whisper-Wins is an application designed to facilitate sealed auctions on a block
 
 This repository contains all the necessary files for the backend of Whisper-Wins. The corresponding frontend can be found [here](https://github.com/hadwrf/whisper-wins-frontend).
 
+Check out the workflow on a youtube demo (no sound).
+[![Workflow Walkthrough](https://img.youtube.com/vi/hYfRzSf7ulw/0.jpg)](https://www.youtube.com/watch?v=hYfRzSf7ulw)
+
+
 ## Repository Structure
 In essence, this repository consists of a bunch of smart contracts:
 
@@ -90,14 +94,6 @@ Note: The test currently does not cover NFT deployment or NFT transfers. You can
 2. Initialize go.mod ```go mod init suave/whisperwins ```
 3. add ```replace github.com/ethereum/go-ethereum => github.com/flashbots/suave-geth v0.2.0``` to your go.mod file
 4. ```go mod tidy```
-5. ```forge build``` & copy your generated your-file.json to ~/go/pkd/mod/github.com/suapp-examples@v0.0.0-20241031122241-896ca6742979/out/your-file.sol/your-file.json (need to create /out/your-file.sol directories)
-6. Start your local suave chain: ```suave-geth --suave.dev --suave.eth.external-whitelist='*'```
-7. To run your own L1 testnet refer to section [Start L1 testnet](#start-l1-testnet) otherwise connect to Sepolia like this:
-8. Add your Sepolia private key to [.env](.env) file. This will be used to fund accounts for bidding.
-9. ```go run main.go```
-
-
-### Start L1 testnet
-1. Initialize your local L1 chain with genesis block (geth needed): ```geth init --datadir myDatadir genesis.json``` (this creates myDatadir/geth directory)
-2. For L1 Testing run ```geth --dev --http --http.port 8555 --datadir myDatadir/ --ipcpath ~/ipc/```
-3. You can use ```geth attach ~/ipc``` to attach an console to the geth chain & ```suave-geth attach /tmp/geth.ipc``` for the suave chain
+5. ```forge build```
+6. Add your Sepolia private key to L1_PRIVATE_KEY in [.env](.env) file. This will be used to fund accounts for bidding. Make sure that the account also has funds on SUAVE Toliman.
+7. ```go run main.go```
