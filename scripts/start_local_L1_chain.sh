@@ -1,1 +1,0 @@
-geth --dev --http --http.port 8555 --datadir myDatadir/ --ipcpath ~/ipc/

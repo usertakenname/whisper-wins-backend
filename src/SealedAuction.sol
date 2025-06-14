@@ -38,25 +38,20 @@ interface Oracle {
 }
 
 contract SealedAuction is Suapp {
-    /* naming convention:
-     * use normal names in camelCase for suave method names e.g. endAuction()
-     * use "method name + Onchain" for their according on chain functionality e.g. endAuctionOnchain()
-     * special case: onchainCallback(), which has no other functionality than emitting all offchain-generated events
-     */
-
     address public auctioneerSUAVE;
     address public auctionWinnerL1 = address(0);
-    uint256 public winningBid = 0;
     address public auctionWinnerSuave = address(0);
-    address public oracle = 0xA63F7384D19aa9Ad6E13A5c3b14D0AeadacC8B2c;
+    address public oracle = 0xA63F7384D19aa9Ad6E13A5c3b14D0AeadacC8B2c; // hard coded address for Oracle on Toliman Chain
     address public nftHoldingAddress;
     address public nftContract;
+
+    uint256 public winningBid = 0;
     uint256 public tokenId;
     uint256 public auctionEndTime;
     uint256 public minimalBid;
+    
     bool public auctionHasStarted = false;
 
-   
     /**
      * @notice Creates the sealed auction contract to auction off a NFT.
      * @param nftContractAddress contract address of the to be auctioned off NFT.
