@@ -9,7 +9,7 @@ import "solady/src/utils/JSONParserLib.sol";
 import "suave-std/crypto/Secp256k1.sol";
 import "suave-std/Transactions.sol";
 
-interface SealedAuctionRollup {
+interface SealedAuctionValidator {
     function registerFinalBlockNumber(
         uint256 _finalBlockNr
     ) external returns (bytes memory);
@@ -21,7 +21,7 @@ interface SealedAuctionRollup {
     function finaliseStartAuction() external view returns (bytes memory);
 }
 
-contract OracleRollup is Suapp {
+contract OracleValidator is Suapp {
     address public owner;
     uint256 public chainID;
     string PRIVATE_KEYS = "KEY";
@@ -82,16 +82,15 @@ contract OracleRollup is Suapp {
     function registerApiKeyOffchain(
         string memory rpcName
     ) external onlyOwner confidential returns (bytes memory) {
-        // Retrieve confidential input data (API key)
         bytes memory rpcData = Context.confidentialInputs();
         address[] memory peekers = new address[](1);
-        peekers[0] = address(this); // The current contract is the only allowed peeker
+        peekers[0] = address(this);
 
         Suave.DataRecord memory record = Suave.newDataRecord(
             0,
-            peekers, // Addresses allowed to read the data
-            peekers, // Addresses allowed to manage the data
-            RPC // Label or identifier for the data
+            peekers,
+            peekers,
+            RPC
         );
 
         Suave.confidentialStore(record.id, RPC, rpcData);
@@ -105,14 +104,12 @@ contract OracleRollup is Suapp {
 
     /**
      * @notice Callback for API key registration.
-     * @dev Function should only be called by registerApiKeyOffchain, not externally. (Can not be made internal as Suave currently offers no alternatives)
      * @param _rpcRecord The Suave DataID to look up the API Key in the Confidential Storage.
      */
     function registerApiKeyOnchain(
         string memory rpcName,
         Suave.DataId _rpcRecord
     ) public onlyOwner emitOffchainLogs confidential {
-        // Update the contract's stored RPC endpoint with the new record ID
         if (keccak256(bytes(rpcName)) == keccak256(bytes("alchemy"))) {
             alchemyEndpoint = _rpcRecord;
         } else if (keccak256(bytes(rpcName)) == keccak256(bytes("etherscan"))) {
@@ -130,35 +127,15 @@ contract OracleRollup is Suapp {
      */
     function getRPCEndpointURL() internal returns (string memory) {
         return
-            // Concatenate the base API URL with the confidentially stored endpoint
             string.concat(
-                BASE_ALCHEMY_URL, // Base API URL
-                string(Suave.confidentialRetrieve(alchemyEndpoint, RPC)) // Confidential endpoint data
+                BASE_ALCHEMY_URL,
+                string(Suave.confidentialRetrieve(alchemyEndpoint, RPC))
             );
     }
 
     // =============================================================
     //           FUNCTIONALITY: "API" FOR SEALED AUCTIONS
     // =============================================================
-
-    //TODO needed?
-    /**
-     * @notice Gets the current Ethereum Block Number.
-     * @custom:return blockNumber Current Ethereum Block Number.
-     */
-    function getEthBlockNumber() external confidential returns (bytes memory) {
-        bytes memory _body = abi.encodePacked(
-            '{"jsonrpc":"2.0", "method": "eth_blockNumber", "params": [], "id": "',
-            toString(chainID),
-            '"}'
-        );
-        bytes memory response = makePostRPCCall(_body); // TODO: remove
-        uint256 blockNumber = JSONParserLib.parseUintFromHex(
-            trimQuotes(JSONParserLib.value(getJSONField(response, "result")))
-        );
-        SealedAuctionRollup sealedAuction = SealedAuctionRollup(msg.sender);
-        return sealedAuction.registerFinalBlockNumber(blockNumber); // call the onchain function of sealed auction
-    }
 
     function getNFTOwnedBy(
         address _nftContract,
@@ -185,7 +162,9 @@ contract OracleRollup is Suapp {
                 )
             )
         );
-        SealedAuctionRollup sealedAuction = SealedAuctionRollup(msg.sender);
+        SealedAuctionValidator sealedAuction = SealedAuctionValidator(
+            msg.sender
+        );
         return sealedAuction.confirmNFTowner(NFTowner);
     }
 
@@ -209,7 +188,9 @@ contract OracleRollup is Suapp {
                 timeout: 7000
             })
         );
-        SealedAuctionRollup sealedAuction = SealedAuctionRollup(msg.sender);
+        SealedAuctionValidator sealedAuction = SealedAuctionValidator(
+            msg.sender
+        );
         return sealedAuction.finaliseStartAuction();
     }
 
@@ -227,16 +208,28 @@ contract OracleRollup is Suapp {
             to,
             tokenId
         );
-
-        return
-            makeTransaction(
-                nftContract,
-                80000,
-                gasPrice,
-                0,
-                payload,
-                suaveDataID
+        uint256 value = getBalance(from);
+        if (value >= 81000 * gasPrice) {
+            return
+                makeTransaction(
+                    nftContract,
+                    80000,
+                    gasPrice,
+                    0,
+                    payload,
+                    suaveDataID
+                );
+        } else {
+            revert(
+                string.concat(
+                    "The account ",
+                    toHexString(abi.encodePacked(from)),
+                    " with balance: ",
+                    toString(value),
+                    " does not have enough funds to transfer the NFT"
+                )
             );
+        }
     }
 
     function transferETH(
@@ -263,8 +256,11 @@ contract OracleRollup is Suapp {
         } else {
             revert(
                 string.concat(
-                    "Funds too less to pay out bids at address: ",
-                    toHexString(abi.encodePacked(publicL1Address))
+                    "The account ",
+                    toHexString(abi.encodePacked(publicL1Address)),
+                    " with balance: ",
+                    toString(value),
+                    " does not have enough funds to transfer ETH"
                 )
             );
         }
@@ -275,7 +271,9 @@ contract OracleRollup is Suapp {
         uint256 blockNumber
     ) external confidential returns (bytes memory) {
         uint256 balance = getBalanceAtBlock(l1Address, blockNumber);
-        SealedAuctionRollup sealedAuction = SealedAuctionRollup(msg.sender);
+        SealedAuctionValidator sealedAuction = SealedAuctionValidator(
+            msg.sender
+        );
         return sealedAuction.refuteWinnerCallback(l1Address, balance);
     }
 
@@ -354,8 +352,7 @@ contract OracleRollup is Suapp {
             '{"jsonrpc":"2.0", "method": "eth_getProof", "params": ["',
             toHexString(abi.encodePacked(l1Address)),
             '",[],"',
-            //LibString.toMinimalHexString(finalETHBlock), //TODO change to this
-            "latest",
+            LibString.toMinimalHexString(finalETHBlock),
             '"], "id": "',
             toString(chainID),
             '"}'
@@ -451,7 +448,7 @@ contract OracleRollup is Suapp {
         return
             Suave.doHTTPRequest(
                 Suave.HttpRequest({
-                    url: BASE_API_URL, // TODO for production: replace with getRPCEndpointURL()
+                    url: getRPCEndpointURL(),
                     method: "POST",
                     headers: getHeaders(),
                     body: _body,
@@ -487,7 +484,7 @@ contract OracleRollup is Suapp {
             toString(chainID),
             '"}'
         );
-        response = makePostRPCCall(_body); //TODO: change to real rpc
+        response = makePostRPCCall(_body);
     }
 
     // =============================================================

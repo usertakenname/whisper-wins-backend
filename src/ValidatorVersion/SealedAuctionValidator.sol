@@ -11,7 +11,7 @@ import "suave-std/crypto/Secp256k1.sol";
 import "solady/src/utils/JSONParserLib.sol";
 import "solady/src/utils/LibString.sol";
 
-interface OracleRollup {
+interface OracleValidator {
     function getEthBlockNumber() external returns (bytes memory);
     function getNFTOwnedBy(
         address _nftContract,
@@ -41,69 +41,33 @@ interface OracleRollup {
     ) external returns (uint256);
 }
 
-contract SealedAuctionRollup is Suapp {
-    address public auctioneerSUAVE; // TODO: which fields should be public? this SUAVE address is public anyways as it is the call deploying the contract
+contract SealedAuctionValidator is Suapp {
+    address public auctioneerSUAVE;
     address public auctionWinnerL1 = address(0);
     uint256 public winningBid = 0;
-    address public auctionWinnerSuave = address(0); // no need to have this public i'd say
-    address public oracle; // TODO: hardcode to static address once we've deployed the final version
+    address public auctionWinnerSuave = address(0);
+    address public oracle; // TODO: insert your own hard coded address for OracleValidator on Toliman Chain
     address nftHoldingAddress;
-    //address(0x929e17E4B2085130a415C5f69Cfb1Fbef163bDAd); //test Address
     address public nftContract;
     uint256 public tokenId;
     uint256 public auctionEndTime;
     uint256 public minimalBid;
-    uint256 public finalBlockNumber; // on ETH Chain
+    uint256 public finalBlockNumber;
     bool public auctionHasStarted = false;
     address public trustedCentralParty =
         address(0x3a5611E9A0dCb0d7590D408D63C9f691E669e29D); // possibility to scale the winner-selection by using a external service (TTP) => its address needs to be defined here
-
-    // TODO delete - debugging only
-    event AuctionInfo(
-        address auctioneerSUAVE,
-        address nftHoldingAddress,
-        address nftContract,
-        uint256 tokenId,
-        uint256 auctionEndTime,
-        uint256 minimalBid,
-        bool auctionHasStarted,
-        address auctionWinnerL1,
-        address auctionWinnerSuave,
-        uint256 finalBlockNumber,
-        uint256 winningBid,
-        address[] revealedL1Addresses
-    );
-    function printInfo() public returns (bytes memory) {
-        emit AuctionInfo(
-            auctioneerSUAVE,
-            nftHoldingAddress,
-            nftContract,
-            tokenId,
-            auctionEndTime,
-            minimalBid,
-            auctionHasStarted,
-            auctionWinnerL1,
-            auctionWinnerSuave,
-            finalBlockNumber,
-            winningBid,
-            publicL1Addresses
-        );
-        return abi.encodeWithSelector(this.onchainCallback.selector);
-    }
 
     constructor(
         address nftContractAddress,
         uint256 nftTokenId,
         uint256 _auctionEndTime,
-        uint256 minimalBiddingAmount,
-        address oracleAddress //TODO: delete from constructor once it is static
+        uint256 minimalBiddingAmount
     ) {
         auctioneerSUAVE = msg.sender;
         nftContract = nftContractAddress;
         tokenId = nftTokenId;
         auctionEndTime = _auctionEndTime;
         minimalBid = minimalBiddingAmount;
-        oracle = oracleAddress; //TODO: delete from constructor once it is static
     }
 
     // restrict sensitive functionality to the deployer of the smart contract
@@ -141,7 +105,6 @@ contract SealedAuctionRollup is Suapp {
         _;
     }
 
-    // TODO: add afterChallengePeriod to allow claiming of bids and NFT
     modifier afterAuctionTime() {
         require(auctionHasStarted, "Auction not yet started");
         require(
@@ -201,8 +164,7 @@ contract SealedAuctionRollup is Suapp {
 
     modifier isTrustedCentralParty(address addr) {
         require(
-            // trustedCentralParty == addr, TODO: uncomment this
-            true,
+            trustedCentralParty == addr,
             string.concat(
                 "Only the central party can call this functionality but was called by: ",
                 toHexString(abi.encodePacked(addr))
@@ -220,13 +182,6 @@ contract SealedAuctionRollup is Suapp {
         winnerRegistered
         returns (bool)
     {
-        // TODO: delete this?
-        // bytes memory privateL1Key = Suave.confidentialRetrieve(
-        //     privateKeysL1[checkAddress],
-        //     PRIVATE_KEYS
-        // );
-        // address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
-        // return publicL1Address == auctionWinnerL1;
         return checkSuaveAddress == auctionWinnerSuave;
     }
 
@@ -236,8 +191,7 @@ contract SealedAuctionRollup is Suapp {
     // SETUP AUCTION RELATED FUNCTIONALITY ---------------------------------------------------------------------------------------------------------------------------
     event NFTHoldingAddressEvent(address nftHoldingAddress);
 
-    // this function generates (if not yet done) the nftHoldingAddres for the auction and emits it
-    // TODOL: confidential modifier needed? generelly at every place without conf input necessary
+
     function setUpAuction()
         public
         confidential
@@ -303,13 +257,6 @@ contract SealedAuctionRollup is Suapp {
         );
     }
 
-    //TODO: remove ; only for testing
-    function startAuctionTest() public returns (bytes memory) {
-        return registerContractAtValidator();
-    }
-
-    // Why doesnt the frontend call our server with the cronjob?
-    // bc our contract should be independent of the frontend
     function startAuction()
         public
         onlyAuctioneer
@@ -317,7 +264,7 @@ contract SealedAuctionRollup is Suapp {
         validAuctionEndTime
         returns (bytes memory)
     {
-        OracleRollup oracleRPC = OracleRollup(oracle);
+        OracleValidator oracleRPC = OracleValidator(oracle);
         return oracleRPC.getNFTOwnedBy(nftContract, tokenId);
     }
 
@@ -332,7 +279,7 @@ contract SealedAuctionRollup is Suapp {
     }
 
     function registerContractAtValidator() public returns (bytes memory) {
-        OracleRollup oracleRPC = OracleRollup(oracle);
+        OracleValidator oracleRPC = OracleValidator(oracle);
         return
             oracleRPC.registerContractAtValidator(
                 address(this),
@@ -485,7 +432,7 @@ contract SealedAuctionRollup is Suapp {
                 l1Addresses[i] = publicL1Address;
             }
             emit RevealBiddingAddresses(l1Addresses);
-            uint256 _finalBlockNumber = OracleRollup(oracle)
+            uint256 _finalBlockNumber = OracleValidator(oracle)
                 .getNearestPreviousBlockExternal(auctionEndTime);
             return
                 abi.encodeWithSelector(
@@ -515,7 +462,7 @@ contract SealedAuctionRollup is Suapp {
             PRIVATE_KEYS
         );
         address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
-        OracleRollup oracleRPC = OracleRollup(oracle);
+        OracleValidator oracleRPC = OracleValidator(oracle);
         return
             oracleRPC.getBalanceAtBlockExternal(
                 publicL1Address,
@@ -615,7 +562,7 @@ contract SealedAuctionRollup is Suapp {
         winnerRegistered
         returns (bytes memory)
     {
-        OracleRollup oracleRPC = OracleRollup(oracle);
+        OracleValidator oracleRPC = OracleValidator(oracle);
         return
             oracleRPC.transferETH(
                 returnAddressL1,
@@ -632,7 +579,7 @@ contract SealedAuctionRollup is Suapp {
         afterAuctionTime
         returns (bytes memory)
     {
-        OracleRollup oracleRPC = OracleRollup(oracle);
+        OracleValidator oracleRPC = OracleValidator(oracle);
         return
             oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
     }
@@ -646,7 +593,7 @@ contract SealedAuctionRollup is Suapp {
         afterAuctionTime
         returns (bytes memory)
     {
-        OracleRollup oracleRPC = OracleRollup(oracle);
+        OracleValidator oracleRPC = OracleValidator(oracle);
         return
             oracleRPC.transferNFT(
                 nftHoldingAddress,
@@ -668,7 +615,7 @@ contract SealedAuctionRollup is Suapp {
         auctionNotStarted
         returns (bytes memory)
     {
-        OracleRollup oracleRPC = OracleRollup(oracle);
+        OracleValidator oracleRPC = OracleValidator(oracle);
         return
             oracleRPC.transferNFT(
                 nftHoldingAddress,
@@ -683,7 +630,7 @@ contract SealedAuctionRollup is Suapp {
     function backOutBid(
         address returnAddressL1
     ) external confidential senderHasBid inBackOutTime returns (bytes memory) {
-        OracleRollup oracleRPC = OracleRollup(oracle);
+        OracleValidator oracleRPC = OracleValidator(oracle);
         return
             oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
     }
