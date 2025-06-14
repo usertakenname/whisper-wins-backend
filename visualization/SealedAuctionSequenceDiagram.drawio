@@ -1,0 +1,248 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0" version="27.1.5">
+  <diagram name="Page-1" id="2YBvvXClWsGukQMizWep">
+    <mxGraphModel dx="2017" dy="1818" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-43" value="" style="group" parent="1" vertex="1" connectable="0">
+          <mxGeometry x="-20" y="426" width="830" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-32" value="" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;color=red;fillColor=#f5f5f5;strokeColor=#666666;fillStyle=auto;opacity=70;fontColor=#333333;labelBackgroundColor=light-dark(#f6f6f6, #ededed);" parent="P22fiNUAd-vMZAN7RUBM-43" vertex="1">
+          <mxGeometry width="830" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="Kri6lF1CRevMLkmVmOg3-16" value="Check all bids" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" parent="P22fiNUAd-vMZAN7RUBM-43" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="625" y="31" as="sourcePoint" />
+            <mxPoint x="755" y="31" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-21" value="End Auction" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;" parent="P22fiNUAd-vMZAN7RUBM-43" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="115" y="22" as="sourcePoint" />
+            <mxPoint x="615" y="22" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-22" value="Determine auction&amp;nbsp;&lt;div&gt;winner&lt;/div&gt;" style="endArrow=classic;html=1;rounded=0;dashed=1;edgeStyle=orthogonalEdgeStyle;elbow=vertical;curved=1;" parent="P22fiNUAd-vMZAN7RUBM-43" target="9YQBinv0Ig9UtqabOygA-2" edge="1">
+          <mxGeometry x="-0.0062" relative="1" as="geometry">
+            <mxPoint x="625" y="45" as="sourcePoint" />
+            <mxPoint x="640" y="90" as="targetPoint" />
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="680" y="45" />
+              <mxPoint x="680" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-23" value="Claim winning bid" style="rounded=0;orthogonalLoop=0;jettySize=auto;html=1;elbow=vertical;" parent="P22fiNUAd-vMZAN7RUBM-43" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="115.00000000000011" y="101" as="sourcePoint" />
+            <mxPoint x="615" y="101" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-25" value="Issue Tx" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" parent="P22fiNUAd-vMZAN7RUBM-43" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="625" y="108" as="sourcePoint" />
+            <mxPoint x="755" y="108" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-27" value="Claim NFT (winner) or bid back (loser)" style="rounded=0;orthogonalLoop=0;jettySize=auto;html=1;elbow=vertical;" parent="P22fiNUAd-vMZAN7RUBM-43" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="245" y="151" as="sourcePoint" />
+            <mxPoint x="615" y="151" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-28" value="Issue Tx" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" parent="P22fiNUAd-vMZAN7RUBM-43" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="625" y="160" as="sourcePoint" />
+            <mxPoint x="755" y="160" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-35" value="&lt;span&gt;Resolving&lt;/span&gt;&lt;div&gt;&lt;span&gt;Auction&lt;/span&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=#666666;fillColor=#f5f5f5;opacity=60;fontColor=#333333;rounded=1;shadow=0;fontStyle=1" parent="P22fiNUAd-vMZAN7RUBM-43" vertex="1">
+          <mxGeometry x="10" y="95" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-42" value="" style="group;direction=south;" parent="1" vertex="1" connectable="0">
+          <mxGeometry x="-20" y="280" width="115" height="830" as="geometry" />
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-19" value="" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;color=red;fillColor=#dae8fc;strokeColor=#6c8ebf;fillStyle=auto;opacity=70;" parent="P22fiNUAd-vMZAN7RUBM-42" vertex="1">
+          <mxGeometry width="830" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="9YQBinv0Ig9UtqabOygA-42" value="Emit encrypted payment address" style="edgeStyle=elbowEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;curved=0;dashed=1;" parent="P22fiNUAd-vMZAN7RUBM-42" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="615" y="66" as="sourcePoint" />
+            <mxPoint x="245" y="66" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="600" y="66" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Kri6lF1CRevMLkmVmOg3-7" value="Generate key pair" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=0.091;exitDx=0;exitDy=0;exitPerimeter=0;dashed=1;" parent="P22fiNUAd-vMZAN7RUBM-42" target="9YQBinv0Ig9UtqabOygA-48" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="625" y="55" as="sourcePoint" />
+            <mxPoint x="760" y="55" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-18" value="Request personalized bidding address" style="edgeStyle=elbowEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;curved=0;editable=1;movable=1;resizable=1;rotatable=1;deletable=1;locked=0;connectable=1;startArrow=none;startFill=0;labelBackgroundColor=light-dark(#ffffff, #272727);labelBorderColor=none;" parent="P22fiNUAd-vMZAN7RUBM-42" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="245" y="40" as="sourcePoint" />
+            <mxPoint x="615" y="40" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-39" value="Placing&lt;div&gt;Bids&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=0;strokeColor=#666666;fillColor=#f5f5f5;opacity=60;fontColor=#333333;rounded=1;shadow=0;fontStyle=1" parent="P22fiNUAd-vMZAN7RUBM-42" vertex="1">
+          <mxGeometry x="10" y="37.5" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-16" value="" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;color=red;fillColor=#fff2cc;strokeColor=#d6b656;gradientColor=none;fillStyle=auto;opacity=70;" parent="1" vertex="1">
+          <mxGeometry x="-20" y="100" width="830" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="aM9ryv3xv72pqoxQDRHE-1" value="&lt;b&gt;Auctioneer&lt;/b&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="40" y="40" width="100" height="640" as="geometry" />
+        </mxCell>
+        <mxCell id="aM9ryv3xv72pqoxQDRHE-2" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="aM9ryv3xv72pqoxQDRHE-1" vertex="1">
+          <mxGeometry x="45" y="70" width="10" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="9YQBinv0Ig9UtqabOygA-55" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="aM9ryv3xv72pqoxQDRHE-1" vertex="1">
+          <mxGeometry x="45" y="396" width="10" height="133" as="geometry" />
+        </mxCell>
+        <mxCell id="9YQBinv0Ig9UtqabOygA-31" value="" style="endArrow=classic;html=1;rounded=0;jumpStyle=arc;" parent="1" target="9YQBinv0Ig9UtqabOygA-2" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="95" y="130" as="sourcePoint" />
+            <mxPoint x="590" y="130" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9YQBinv0Ig9UtqabOygA-32" value="Deploy Auction Contract" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" parent="9YQBinv0Ig9UtqabOygA-31" connectable="0" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="9YQBinv0Ig9UtqabOygA-47" value="&lt;b&gt;Settlement&amp;nbsp;&lt;/b&gt;&lt;div&gt;&lt;b&gt;Chain&lt;/b&gt;&lt;/div&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="690" y="40" width="100" height="640" as="geometry" />
+        </mxCell>
+        <mxCell id="9YQBinv0Ig9UtqabOygA-48" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="9YQBinv0Ig9UtqabOygA-47" vertex="1">
+          <mxGeometry x="45" y="80" width="10" height="500" as="geometry" />
+        </mxCell>
+        <mxCell id="Kri6lF1CRevMLkmVmOg3-3" value="Generate key pair" style="endArrow=classic;html=1;rounded=0;dashed=1;" parent="1" edge="1">
+          <mxGeometry x="-0.0154" relative="1" as="geometry">
+            <mxPoint x="606" y="158" as="sourcePoint" />
+            <mxPoint x="736" y="158" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Kri6lF1CRevMLkmVmOg3-5" value="" style="endArrow=classic;html=1;rounded=1;jumpStyle=arc;elbow=vertical;curved=0;" parent="1" source="aM9ryv3xv72pqoxQDRHE-2" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="100" y="190" as="sourcePoint" />
+            <mxPoint x="735.5000000000002" y="190" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="250" y="190" />
+              <mxPoint x="580" y="190" />
+              <mxPoint x="600" y="180" />
+              <mxPoint x="620" y="190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Kri6lF1CRevMLkmVmOg3-6" value="&lt;div&gt;Transfer NFT&lt;/div&gt;" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" parent="Kri6lF1CRevMLkmVmOg3-5" connectable="0" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-68" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Kri6lF1CRevMLkmVmOg3-11" value="Emit NFT holding address" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;dashed=1;" parent="1" target="aM9ryv3xv72pqoxQDRHE-2" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="595" y="169.99571428571434" as="sourcePoint" />
+            <mxPoint x="100" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-1" value="" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" parent="1" vertex="1">
+          <mxGeometry x="75" y="-30" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-2" value="" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" parent="1" vertex="1">
+          <mxGeometry x="205" y="-30" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-5" value="" style="endArrow=classic;html=1;rounded=0;jumpStyle=arc;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="95" y="150" as="sourcePoint" />
+            <mxPoint x="595" y="150" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-6" value="Setup Auction" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" parent="P22fiNUAd-vMZAN7RUBM-5" connectable="0" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-10" value="" style="endArrow=classic;html=1;rounded=0;jumpStyle=arc;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="95" y="210" as="sourcePoint" />
+            <mxPoint x="595" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-11" value="Start auction" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" parent="P22fiNUAd-vMZAN7RUBM-10" connectable="0" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-12" value="Check NFT owner" style="endArrow=classic;html=1;rounded=0;dashed=1;" parent="1" edge="1">
+          <mxGeometry x="-0.0154" relative="1" as="geometry">
+            <mxPoint x="605" y="218" as="sourcePoint" />
+            <mxPoint x="735" y="218" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-40" value="Starting&lt;div&gt;Auction&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=0;strokeColor=#666666;fillColor=#f5f5f5;opacity=60;fontColor=#333333;rounded=1;shadow=0;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="-10" y="157.5" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="9YQBinv0Ig9UtqabOygA-1" value="&lt;b&gt;Execution&lt;/b&gt;&lt;div&gt;&lt;b&gt;Chain&lt;/b&gt;&lt;/div&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="550" y="40" width="100" height="640" as="geometry" />
+        </mxCell>
+        <mxCell id="9YQBinv0Ig9UtqabOygA-2" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="595" y="120" width="10" height="500" as="geometry" />
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-13" value="Set auction started" style="endArrow=classic;html=1;rounded=0;dashed=1;edgeStyle=orthogonalEdgeStyle;elbow=vertical;curved=1;" parent="1" edge="1">
+          <mxGeometry x="-0.0062" relative="1" as="geometry">
+            <mxPoint x="605" y="230" as="sourcePoint" />
+            <mxPoint x="605" y="258.0000000000002" as="targetPoint" />
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="660" y="230" />
+              <mxPoint x="660" y="258" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Kri6lF1CRevMLkmVmOg3-12" value="&lt;div&gt;Place bid&lt;/div&gt;" style="rounded=1;orthogonalLoop=1;jettySize=auto;html=1;elbow=vertical;editable=1;movable=1;resizable=1;rotatable=1;deletable=1;locked=0;connectable=1;startArrow=none;startFill=0;curved=0;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="225" y="368" as="sourcePoint" />
+            <mxPoint x="735" y="368" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="580" y="368" />
+              <mxPoint x="600" y="355" />
+              <mxPoint x="620" y="368" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9YQBinv0Ig9UtqabOygA-6" value="&lt;b&gt;Bidder&lt;/b&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=0;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="170" y="40" width="100" height="640" as="geometry" />
+        </mxCell>
+        <mxCell id="Kri6lF1CRevMLkmVmOg3-15" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="215" y="543" width="10" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="9YQBinv0Ig9UtqabOygA-7" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" parent="1" vertex="1">
+          <mxGeometry x="215" y="294.5" width="10" height="86" as="geometry" />
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-30" value="Award NFT or bid" style="rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;curved=0;" parent="1" edge="1">
+          <mxGeometry x="0.0005" relative="1" as="geometry">
+            <mxPoint x="735" y="609" as="sourcePoint" />
+            <mxPoint x="225" y="609" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="620" y="609" />
+              <mxPoint x="600" y="596" />
+              <mxPoint x="580" y="609" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="P22fiNUAd-vMZAN7RUBM-26" value="Award winning bid" style="rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;curved=0;" parent="1" edge="1">
+          <mxGeometry x="0.0005" relative="1" as="geometry">
+            <mxPoint x="735" y="555" as="sourcePoint" />
+            <mxPoint x="95" y="555" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="620" y="554" />
+              <mxPoint x="600" y="544" />
+              <mxPoint x="580" y="554" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
