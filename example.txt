@@ -1,0 +1,32 @@
+Gas costs: 348887
+For 1 bidders: Gas costs: 324442
+For 1 bidders: Gas costs: 306069
+For 1 bidders: Gas costs: 306069
+For 1 bidders: Gas costs: 306069
+For 1 bidders: Gas costs: 306069
+For 1 bidders: Gas costs: 306069
+For 2 bidders: Gas costs: 348887
+For 2 bidders: Gas costs: 348887
+--------------------------------
+For 0 bidders: Gas costs: 122588
+For 1 bidders: Gas costs: 306069
+For 1 bidders: Gas costs: 306069
+For 1 bidders: Gas costs: 306069
+For 2 bidders: Gas costs: 349955
+For 2 bidders: Gas costs: 348887
+For 2 bidders: Gas costs: 348887
+For 3 bidders: Gas costs: 391723
+For 3 bidders: Gas costs: 391723
+For 3 bidders: Gas costs: 391711
+For 4 bidders: Gas costs: 434578
+For 4 bidders: Gas costs: 434578
+For 4 bidders: Gas costs: 435090
+For 5 bidders: Gas costs: 477451
+For 5 bidders: Gas costs: 477451
+For 5 bidders: Gas costs: 477964
+For 6 bidders: Gas costs: 520869
+For 6 bidders: Gas costs: 521408
+For 6 bidders: Gas costs: 520343
+For 7 bidders: Gas costs: 563241
+For 7 bidders: Gas costs: 563241
+For 7 bidders: Gas costs: 563805

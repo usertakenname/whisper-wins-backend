@@ -146,7 +146,7 @@ func (c *Contract) Raw() *sdk.Contract {
 var executionRevertedPrefix = "execution reverted: 0x"
 
 // SendConfidentialRequest sends the confidential request to the kettle
-func (c *Contract) SendConfidentialRequest(method string, args []interface{}, confidentialBytes []byte) *types.Receipt {
+func (c *Contract) SendConfidentialRequest(method string, args []interface{}, confidentialBytes []byte) (*types.Receipt, error) {
 	txnResult, err := c.contract.SendTransaction(method, args, confidentialBytes)
 	if err != nil {
 		// decode the PeekerReverted error
@@ -161,19 +161,19 @@ func (c *Contract) SendConfidentialRequest(method string, args []interface{}, co
 			eventErr, _ := unpacked[1].([]byte)
 			panic(fmt.Sprintf("peeker 0x%x reverted: %s", addr, eventErr))
 		}
-		panic(err)
+		return nil, err
 	}
 
 	log.Printf("transaction hash: %s", txnResult.Hash().Hex())
 
 	receipt, err := txnResult.Wait()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	if receipt.Status == 0 {
 		panic(fmt.Errorf("status not correct"))
 	}
-	return receipt
+	return receipt, nil
 }
 
 type Framework struct {
@@ -185,7 +185,7 @@ type Framework struct {
 }
 
 type Config struct {
-	KettleRPC string `env:"KETTLE_RPC, default=https://rpc.toliman.suave.flashbots.net"`
+	KettleRPC string `env:"KETTLE_RPC, default=http://localhost:8545"`
 
 	// This account is funded in your local SUAVE devnet
 	// address: 0xBE69d72ca5f88aCba033a063dF5DBe43a4148De0
