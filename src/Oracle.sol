@@ -195,7 +195,11 @@ contract Oracle is Suapp {
                 payload,
                 suaveDataID
             );
-        } else {
+        }else{        
+            emit TestEvent("not enough money to return NFT");
+
+            }
+            /*  else {
             revert(
                 string.concat(
                     "The account ",
@@ -205,7 +209,7 @@ contract Oracle is Suapp {
                     " does not have enough funds to transfer the NFT"
                 )
             );
-        }
+        } */
     }
 
     function transferETH(
@@ -228,7 +232,10 @@ contract Oracle is Suapp {
                 "",
                 suaveDataID
             );
-        } else {
+        }else{
+                    emit TestEvent("NOT ENOUGH MONEY TO RETURN MONEY");
+
+        } /* else {
             revert(
                 string.concat(
                     "The account ",
@@ -238,7 +245,7 @@ contract Oracle is Suapp {
                     " does not have enough funds to transfer ETH"
                 )
             );
-        }
+        } */
     }
 
     function transferETHForNFT(
@@ -376,7 +383,7 @@ contract Oracle is Suapp {
             )
         );
     }
-
+    event TestEvent(string test);
     // sign and issue new transactions in order to move funds and NFTs
     function makeTransaction(
         address toAddress,
@@ -408,6 +415,8 @@ contract Oracle is Suapp {
             string(privateL1Key)
         );
         bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
+        bytes memory txHash = abi.encodePacked(keccak256(rlpEncodedTxn));
+        emit TestEvent(string.concat("Hash of transaction " , toHexString(txHash)));
 
         sendRawTxHttpRequest(rlpEncodedTxn);
     }

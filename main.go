@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"math/big"
-	"strconv"
 	"strings"
 
 	"os"
@@ -47,6 +46,9 @@ func deployContractWithConstructor(_path string, SuaveDevAccount *framework.Priv
 	if receipt.Status == 0 {
 		panic(fmt.Errorf("transaction failed"))
 	}
+	if strings.Contains(_path, "SealedAuction") {
+		writeTextToFile("Deploying the auction contract: " + fmt.Sprintf("%d", receipt.GasUsed))
+	}
 	log.Printf("deployed contract at %s", receipt.ContractAddress.Hex())
 	contract := sdk.GetContract(receipt.ContractAddress, artifact.Abi, newClient)
 
@@ -68,6 +70,7 @@ func getBiddingAddress(contract *framework.Contract) string {
 	checkError(err)
 	receipt, err := contract.SendConfidentialRequest("getBiddingAddress", nil, randomKey)
 	checkError(err)
+	printReceipt(receipt, contract)
 	event, err := contract.Abi.Events["EncBiddingAddress"].ParseLog(receipt.Logs[0])
 	checkError(err)
 	encryptedBiddingAddress := event["encryptedL1Address"].([]byte)
@@ -75,13 +78,15 @@ func getBiddingAddress(contract *framework.Contract) string {
 	fmt.Println("Owner of Bidding address:", event["owner"])
 	fmt.Println("Encrypted L1 bidding address:", hex.EncodeToString(encryptedBiddingAddress))
 	fmt.Println("Decrypted L1 bidding address:", plainTextAddress)
+
+	writeTextToFile("Getting a bidding address: " + fmt.Sprintf("%d", receipt.GasUsed))
+
 	return plainTextAddress
 }
 
 func startAuction(contract *framework.Contract) {
 	receipt, err := contract.SendConfidentialRequest("startAuction", nil, nil)
 	if err != nil {
-		sdk.SetDefaultGasLimit(1000000)
 
 		fmt.Println("Starting the auction failed, will try again in 10 seconds")
 		time.Sleep(10 * time.Second)
@@ -100,21 +105,18 @@ func startAuction(contract *framework.Contract) {
 			fmt.Println("Minimal Bidding Amount:", event["minimalBiddingAmount"])
 		}
 	}
+	writeTextToFile("Start auction: " + fmt.Sprintf("%d", receipt.GasUsed))
 }
 
 func endAuction(contract *framework.Contract, num_bidder int) {
-	sdk.SetDefaultGasLimit(0)
-	gasLimit, count := big.NewInt(10000000), 0
+	count := 0
 
 	receipt, err := contract.SendConfidentialRequest("endAuction", nil, nil)
 	for err != nil && count < 10 {
-		sdk.SetDefaultGasLimit(gasLimit.Uint64())
-		gasLimit.Mul(gasLimit, big.NewInt(10))
-		fmt.Printf("Ending the auction failed, will try again in with %s as gaslimit", gasLimit)
 		receipt, err = contract.SendConfidentialRequest("endAuction", nil, nil)
+		time.Sleep(5 * time.Second)
 		count++
 	}
-	sdk.SetDefaultGasLimit(0)
 	if err != nil {
 		receipt, err = contract.SendConfidentialRequest("endAuction", nil, nil)
 	}
@@ -124,16 +126,13 @@ func endAuction(contract *framework.Contract, num_bidder int) {
 		log.Fatal("End Auction call failed")
 	} else {
 		fmt.Println("End auction results:")
+		printReceipt(receipt, contract)
 	}
 	fmt.Println("Auction took gas: ", receipt.GasUsed)
 	fmt.Println("Effective gas price: ", receipt.EffectiveGasPrice)
 	fmt.Println("Cumulative gas used: ", receipt.CumulativeGasUsed)
-	stringToWrite := fmt.Sprintf("For %d bidders: Gas costs: %d\n", num_bidder, receipt.GasUsed)
-	file, err := os.OpenFile("example.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	checkError(err)
-	_, err = file.WriteString(stringToWrite)
-	checkError(err)
 	printReceipt(receipt, contract)
+	writeTextToFile("Ending auction: " + fmt.Sprintf("%d", receipt.GasUsed))
 }
 
 var SuaveClient *ethclient.Client
@@ -141,7 +140,7 @@ var L1client *ethclient.Client
 var L1chainID *big.Int
 var L1DevAccount *framework.PrivKey
 var SuaveDevAccount *framework.PrivKey
-
+var writeToFile bool
 var path = "SealedAuctionLocalTesting.sol/SealedAuction.json"
 var fr *framework.Framework
 
@@ -149,6 +148,7 @@ func setUpAuction(contract *framework.Contract) {
 	receipt, err := contract.SendConfidentialRequest("setUpAuction", nil, nil)
 	checkError(err)
 	printReceipt(receipt, contract)
+	writeTextToFile("Setup: " + fmt.Sprintf("%d", receipt.GasUsed))
 }
 
 func printReceipt(receipt *types.Receipt, contract *framework.Contract) {
@@ -168,7 +168,7 @@ func printReceipt(receipt *types.Receipt, contract *framework.Contract) {
 		} else if receipt.Logs[i].Topics[0] == contract.Abi.Events["TestEvent"].ID { // TODO DELETE
 			event, err := contract.Abi.Events["TestEvent"].ParseLog(receipt.Logs[i])
 			checkError(err)
-			fmt.Println("NFTHoldingAddrTestEventessEvent : ", event["L1key"])
+			fmt.Println("NFTHoldingAddrTestEventessEvent : ", event["test"])
 		}
 	}
 }
@@ -231,12 +231,21 @@ func aesDecrypt(key []byte, ciphertext []byte) ([]byte, error) {
 
 // Used for winner, losers & Auction Owner
 func claim(contract *framework.Contract) {
-	receipt, err := contract.SendConfidentialRequest("claim", []interface{}{L1DevAccount.Address()}, nil)
-	checkError(err)
-	if receipt.Status == types.ReceiptStatusFailed {
-		log.Fatal("Claim failed")
+	//toAdd := L1DevAccount.Address().Hex()
+	receipt, err := contract.SendConfidentialRequest("claim", []interface{}{L1DevAccount.Address().Hex()}, nil)
+
+	if err != nil {
+		log.Println("Claim failed; continue like it worked")
+		log.Println(err)
+	} else if receipt.Status == types.ReceiptStatusFailed {
+		log.Println("Claim failed STATUS Incorrect; continue like it worked")
+		log.Println(err)
+		log.Println(receipt)
+	} else {
+		printReceipt(receipt, contract)
+		writeTextToFile("Claiming valuables: " + fmt.Sprintf("%d", receipt.GasUsed))
 	}
-	printReceipt(receipt, contract)
+
 }
 
 func deployOracle() *framework.Contract {
@@ -285,64 +294,67 @@ func init() { // DEPRECATED: for toliman suave chain dial https://rpc.toliman.su
 	L1client, err = ethclient.Dial("https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086") //TODO CHANGE TO ENV
 	checkError(err)
 	L1chainID = big.NewInt(SEPOLIA_CHAIN_ID)
+	writeToFile = true
 }
 
 // with already existing contract
-func claimProcedure(contractAdd common.Address, bidder *framework.PrivKey) {
-	newClient := sdk.NewClient(SuaveClient.Client(), SuaveDevAccount.Priv, fr.KettleAddress)
-	artifact, err := framework.ReadArtifact(path)
+func claimProcedure(bidder *framework.PrivKey) {
+	gasPrice, err := SuaveClient.SuggestGasPrice(context.Background())
 	checkError(err)
-	//contractAdd := common.HexToAddress("0x110A54D273a9Fdb8F7e1FE44553931d249C12363")
-	log.Printf("existing contract at %s", contractAdd)
-	contract := sdk.GetContract(contractAdd, artifact.Abi, newClient)
+	nftTokenID := big.NewInt(3)
+	nftContractAddress := common.HexToAddress("0x752dDaf94E17df2827F2140998df02Bfd998F1FB") //TODO REPLACE WITH ENV
+	nftHoldingAddress := bidder.Address()
+	makeTransaction(L1DevAccount, big.NewInt(gasPrice.Int64()*80000*4), nftHoldingAddress)
+	fmt.Println("returning the NFT to main account")
+	moveNft(L1DevAccount.Address(), nftTokenID, nftContractAddress, bidder)
 
-	sealedAuctionContract := framework.CreateContract(contractAdd, newClient, fr.KettleAddress, artifact.Abi, contract)
-	endAuction(sealedAuctionContract, 1)
-	receipt, err := sealedAuctionContract.SendConfidentialRequest("emitCurrentState", nil, nil)
-	checkError(err)
-	if receipt.Logs[0].Topics[0] == sealedAuctionContract.Abi.Events["AuctionStateUpdate"].ID {
-		event, err := sealedAuctionContract.Abi.Events["AuctionStateUpdate"].ParseLog(receipt.Logs[0])
-		checkError(err)
-		fmt.Println("auctioneerSUAVE:", event["auctioneerSUAVE"])
-		fmt.Println("auctionWinnerL1:", event["auctionWinnerL1"])
-		fmt.Println("auctionWinnerSuave:", event["auctionWinnerSuave"])
-		fmt.Println("oracle:", event["oracle"])
-		fmt.Println("nftHoldingAddress:", event["nftHoldingAddress"])
-		fmt.Println("nftContract:", event["nftContract"])
-		fmt.Println("winningBid:", event["winningBid"])
-		fmt.Println("tokenId:", event["tokenId"])
-		fmt.Println("auctionEndTime:", event["auctionEndTime"])
-		fmt.Println("auctionHasStarted:", event["auctionHasStarted"])
-		fmt.Println("minimalBid:", event["minimalBid"])
-
-	}
-	//endAuction(sealedAuctionContract)
-	//getFieldFromContract(sealedAuctionContract, "winningBid")
-	//bidder := framework.NewPrivKeyFromHex("281ee93997ca7c73e4d70623195f9ef042241b66fbb9fd165b3bb0a3d58953b2")
-	fr.Suave.FundAccount(bidder.Address(), big.NewInt(3434709650000000))
-	claim(sealedAuctionContract.Ref(bidder))
-	/* 	bidders := make([]*framework.PrivKey, 0)
-	   	sdk.SetDefaultGasLimit(1000000)
-
-	   	for i := range 1 {
-	   		fmt.Println("Creating account #", i)
-	   		bidders = append(bidders, createAccount())
-	   		fmt.Println("Private key of bidder: ", hex.EncodeToString(bidders[i].Priv.D.Bytes()))
-	   		bidContract := sealedAuctionContract.Ref(bidders[i])
-	   		placeBid(bidders[i], bidContract)
-	   	} */
-	claim(sealedAuctionContract)
+	fmt.Println("returning the funds left on NFT holding address to main account")
+	sendAllBalance(bidder, L1DevAccount.Address())
 }
 
 func main() {
-	args := os.Args
+	//args := os.Args
 	if true {
-		num_bidder, err := strconv.Atoi(args[1])
-		checkError(err)
-		procedure(num_bidder)
+		//num_bidder, err := strconv.Atoi(args[1])
+		//checkError(err)
+		num_biddder := 1
+		writeTextToFile("\nStarting the auction with bidder amount: " + fmt.Sprintf("%d", num_biddder))
+		procedure(num_biddder)
 	} else {
-		claimProcedure(common.HexToAddress("0x46C152EE6D11002C764AA284fde05294722E2D1A"),
-			framework.NewPrivKeyFromHex("266ac885520ea9ef44b98d04810aeb5965e091af3e541cca1972623d1d8c9a10"))
+		claimProcedure(framework.NewPrivKeyFromHex("cb49dcc3f27d926252a10270c1e36161f95968dee35c9eac5bfc375d54c1f4af"))
+		/* auctionInSeconds := int64(20)
+		auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
+		nftTokenID, minimalBiddingAmount := big.NewInt(1), big.NewInt(1000000000)               // 1 GWEI
+		nftContractAddress := common.HexToAddress("0x752dDaf94E17df2827F2140998df02Bfd998F1FB") //TODO REPLACE WITH ENV
+		oracleAddress := deployOracle().Raw().Address()
+		contract := deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracleAddress)
+
+		fmt.Println("2 Setup Auction")
+		setUpAuction(contract)
+		fmt.Println("2 Debug Auction")
+
+		receipt, err := contract.SendConfidentialRequest("debug", nil, nil)
+		checkError(err)
+		printReceipt(receipt, contract)
+		receipt, err = contract.SendConfidentialRequest("emitCurrentState", nil, nil)
+		checkError(err)
+		if receipt.Logs[0].Topics[0] == contract.Abi.Events["AuctionStateUpdate"].ID {
+			event, err := contract.Abi.Events["AuctionStateUpdate"].ParseLog(receipt.Logs[0])
+			checkError(err)
+			fmt.Println("auctioneerSUAVE:", event["auctioneerSUAVE"])
+			fmt.Println("auctionWinnerL1:", event["auctionWinnerL1"])
+			fmt.Println("auctionWinnerSuave:", event["auctionWinnerSuave"])
+			fmt.Println("oracle:", event["oracle"])
+			fmt.Println("nftHoldingAddress:", event["nftHoldingAddress"])
+			fmt.Println("nftContract:", event["nftContract"])
+			fmt.Println("winningBid:", event["winningBid"])
+			fmt.Println("tokenId:", event["tokenId"])
+			fmt.Println("auctionEndTime:", event["auctionEndTime"])
+			fmt.Println("auctionHasStarted:", event["auctionHasStarted"])
+			fmt.Println("minimalBid:", event["minimalBid"])
+
+		}
+		claim(contract) */
 	}
 }
 
@@ -353,14 +365,12 @@ func procedure(num_bidder int) {
 	checkError(err)
 	fmt.Println("Current Suave Toliman Gas Price: ", gasPrice)
 	oracleAddress := deployOracle().Raw().Address() // To Deploy your own oracle; also has to be changed in SealedAuction.sol
-
 	fmt.Println("1. Deploy Sealed Auction contract on TOLIMAN SUAVE CHAIN")
-	auctionInSeconds := int64(60)
+	auctionInSeconds := int64(40)
 	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
-	nftTokenID, minimalBiddingAmount := big.NewInt(1), big.NewInt(1000000000)               // 1 GWEI
+	nftTokenID, minimalBiddingAmount := big.NewInt(3), big.NewInt(1000000000)               // 1 GWEI
 	nftContractAddress := common.HexToAddress("0x752dDaf94E17df2827F2140998df02Bfd998F1FB") //TODO REPLACE WITH ENV
 	contract := deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracleAddress)
-
 	fmt.Println("2 Setup Auction")
 	setUpAuction(contract)
 	nftHoldingAddress := getFieldFromContract(contract, "nftHoldingAddress")[0].(common.Address)
@@ -374,20 +384,19 @@ func procedure(num_bidder int) {
 	num_accounts := num_bidder
 	fmt.Println("5. Place bid with ", num_accounts, " accounts")
 	bidders := make([]*framework.PrivKey, 0)
-	sdk.SetDefaultGasLimit(1000000)
 
 	for i := range num_accounts {
 		fmt.Println("Creating account #", i)
 		bidders = append(bidders, createAccount())
 		fmt.Println("Private key of bidder: ", hex.EncodeToString(bidders[i].Priv.D.Bytes()))
-		getBiddingAddress(contract.Ref(bidders[i]))
 		bidContract := contract.Ref(bidders[i])
 		placeBid(bidders[i], bidContract)
 	}
 
 	fmt.Println("Waiting ", auctionInSeconds, " seconds for the auction to be over.")
-	fmt.Println("6. End Auction")
 	time.Sleep(time.Duration(auctionInSeconds) * time.Second)
+
+	fmt.Println("6. End Auction")
 
 	endAuction(contract, num_accounts)
 	/* 	fmt.Println("Waiting for the tax funding the nft holding address")
@@ -396,17 +405,18 @@ func procedure(num_bidder int) {
 	getFieldFromContract(contract, "auctionWinnerL1")
 	getFieldFromContract(contract, "auctionWinnerSuave")
 	getFieldFromContract(contract, "winningBid")
-
-	/* fr.Suave.FundAccount(bidders[0].Address(), big.NewInt(3434709650000000))
-	fmt.Println("7a. Claim: get NFT for winner")
-
-	//claimProcedure(contract.Raw().Address(), bidders[0])
-	claim(contract.Ref(bidders[0]))
-
+	fmt.Println("Waiting 30 seconds for the NFT holding address to be funded.")
+	time.Sleep(time.Duration(30) * time.Second)
 	fmt.Println("7b. Claim: Get winning bid as auctioneer")
+	claim(contract)
 
-	claim(contract) */
+	fmt.Println("7a. Claim: get NFT for winner & return bids")
+	for i := range num_bidder {
+		bidContract := contract.Ref(bidders[i])
 
+		claim(bidContract)
+	}
+	return
 	//-------------------------------------------------
 	// returns the funds/NFT
 	makeTransaction(L1DevAccount, big.NewInt(gasPrice.Int64()*80000*4), nftHoldingAddress)
@@ -447,6 +457,12 @@ func moveNft(toAddress common.Address, nftTokenID *big.Int, nftContractAddress c
 
 	log.Printf("Transaction sent! Hash: %s\n", signedTx.Hash().Hex())
 	waitForTxToBeIncluded(signedTx)
+	receipt, err := L1client.TransactionReceipt(context.Background(), signedTx.Hash())
+	checkError(err)
+	if receipt.Status == types.ReceiptStatusFailed {
+		panic("Moving the NFT Failed")
+	}
+	writeTextToFile("L1 Moving the NFT to NFT holding address: " + fmt.Sprintf("%d", receipt.GasUsed))
 }
 
 func fundL1Account(to common.Address, value *big.Int) error {
@@ -539,10 +555,10 @@ func createAccount() *framework.PrivKey {
 	newAccountPrivKey := framework.GeneratePrivKey()
 	log.Printf("Created Address at: %s", newAccountPrivKey.Address().Hex())
 	fundBalance := big.NewInt(500000000000000) // fund 500.000 GWEI on L1
-	/* fmt.Println("Funding the L1 account with balance: ", fundBalance)
+	fmt.Println("Funding the L1 account with balance: ", fundBalance)
 	err := fundL1Account(newAccountPrivKey.Address(), fundBalance)
-	checkError(err) */
-	fundBalance = big.NewInt(1000000000000000) // 1.000.000 GWEI on SUAVE
+	checkError(err)
+	fundBalance = big.NewInt(200000000000000000) // 0,2 ETH on SUAVE
 	fmt.Println("Funding the Suave account with balance: ", fundBalance)
 	fundSuaveAccount(newAccountPrivKey.Address(), fundBalance)
 	return newAccountPrivKey
@@ -578,8 +594,8 @@ func getPrivKey(contract *framework.Contract) string {
 		if receipt.Logs[i].Topics[0] == contract.Abi.Events["TestEvent"].ID {
 			event, err := contract.Abi.Events["TestEvent"].ParseLog(receipt.Logs[i])
 			checkError(err)
-			fmt.Println("Revealed Private key:", event["L1key"])
-			return event["L1key"].(string)
+			fmt.Println("Revealed Private key:", event["test"])
+			return event["test"].(string)
 		}
 	}
 	return ""
@@ -631,4 +647,13 @@ func sendAllBalance(privKey *framework.PrivKey, to common.Address) {
 	checkError(err)
 	waitForTxToBeIncluded(signedTx)
 	fmt.Printf("Sent %s wei from %s to %s (all balance minus gas)\n", valueToSend.String(), from.Hex(), to.Hex())
+}
+
+func writeTextToFile(text string) {
+	if writeToFile {
+		file, err := os.OpenFile("measurements.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		checkError(err)
+		_, err = file.WriteString(text + "\n")
+		checkError(err)
+	}
 }

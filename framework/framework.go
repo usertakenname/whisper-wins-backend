@@ -171,7 +171,7 @@ func (c *Contract) SendConfidentialRequest(method string, args []interface{}, co
 		return nil, err
 	}
 	if receipt.Status == 0 {
-		panic(fmt.Errorf("status not correct"))
+		return nil, fmt.Errorf("status not correct")
 	}
 	return receipt, nil
 }

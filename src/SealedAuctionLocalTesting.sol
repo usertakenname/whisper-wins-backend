@@ -41,7 +41,7 @@ contract SealedAuction is Suapp {
     address public auctioneerSUAVE;
     address public auctionWinnerL1 = address(0);
     address public auctionWinnerSuave = address(0);
-    address public oracle = 0x638B4d6CfFeDc1a8b5D32e651E62AE552b9e874C; // hard coded address for Oracle on Toliman Chain
+    address public oracle; // hard coded address for Oracle on Toliman Chain
     address public nftHoldingAddress;
     address public nftContract;
 
@@ -265,7 +265,7 @@ contract SealedAuction is Suapp {
 
     // TODO: delete
     // gets privateKey of NFT Holding address
-    event TestEvent(string L1key);
+    event TestEvent(string test);
     function getPrivKey() public returns (bytes memory) {
         bytes memory privateL1Key = Suave.confidentialRetrieve(
             privateKeysL1[address(this)],
@@ -600,16 +600,30 @@ contract SealedAuction is Suapp {
         revealedL1Addresses = _l1Addresses;
     }
 
+    function debug() external confidential returns (bytes memory) {
+        return
+            abi.encodeWithSelector(
+                this.endAuctionOnchain.selector,
+                auctioneerSUAVE,
+                auctioneerSUAVE,
+                0,
+                new address[](0)
+            );
+    }
+
     /**
      * @notice Central method for all to claim their valuables. Losers get their bid back;
      * @notice Winner gets the NFT; Auctioneer gets the winning bid.
      * @dev No need to keep the returnAddress private by using a confidential input as the bidding address
      * @dev is public at this point anyway and anyone can track it's actions.
-     * @param returnAddressL1 L1 address where the valuables are to be sent.
+     * @param returnAddress L1 address where the valuables are to be sent.
      */
     function claim(
-        address returnAddressL1
+        string calldata returnAddress
     ) external confidential winnerRegistered returns (bytes memory) {
+        
+        address returnAddressL1 = toAddress(returnAddress);
+        emit TestEvent(toHexString(abi.encodePacked(returnAddressL1)));
         // when no one bid => auctioneer gets the NFT
         if (msg.sender == auctioneerSUAVE) {
             // auctioneer has to be checked first. Do not change the order!
@@ -636,10 +650,10 @@ contract SealedAuction is Suapp {
         address returnAddressL1
     ) internal onlyAuctioneer {
         Oracle oracleRPC = Oracle(oracle);
-         oracleRPC.transferETH(
+        oracleRPC.transferETH(
             returnAddressL1,
             privateKeysL1[auctionWinnerSuave]
-        ); 
+        );
     }
 
     /**
@@ -660,13 +674,13 @@ contract SealedAuction is Suapp {
 
     //TODO delete
     function hasPrivateKeyRecord(address bidder) public view returns (bool) {
-    Suave.DataId  dataId = privateKeysL1[bidder];
-    // Assuming Suave.DataId has a field 'id' of type bytes32 or similar
-    // If it's bytes32:
-    //return dataId != bytes16(0);
-    // If it's bytes:
-    return Suave.DataId.unwrap(dataId) != bytes16(0);
-}
+        Suave.DataId dataId = privateKeysL1[bidder];
+        // Assuming Suave.DataId has a field 'id' of type bytes32 or similar
+        // If it's bytes32:
+        //return dataId != bytes16(0);
+        // If it's bytes:
+        return Suave.DataId.unwrap(dataId) != bytes16(0);
+    }
 
     /**
      * @notice Refunds the bid to a loser.
@@ -735,4 +749,29 @@ contract SealedAuction is Suapp {
     function toString(uint256 value) internal pure returns (string memory str) {
         return LibString.toString(value);
     }
+
+     function toAddress(string memory hexString) internal pure returns (address) {
+        bytes memory b = bytes(hexString);
+        require(b.length == 42, "Invalid address length"); // 2 chars for "0x" + 40 hex digits
+
+        uint160 result = 0;
+        uint160 digit;
+        for (uint256 i = 2; i < 42; i++) {
+            uint8 char = uint8(b[i]);
+
+            if (char >= 48 && char <= 57) {         // '0'–'9' => 0–9
+                digit = uint160(char - 48);
+            } else if (char >= 65 && char <= 70) {  // 'A'–'F' => 10–15
+                digit = uint160(char - 55);
+            } else if (char >= 97 && char <= 102) { // 'a'–'f' => 10–15
+                digit = uint160(char - 87);
+            } else {
+                revert("Invalid hex character");
+            }
+
+            result = (result << 4) | digit;
+        }
+
+        return address(result);
+     }
 }
