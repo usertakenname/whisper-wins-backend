@@ -52,21 +52,6 @@ contract SealedAuction is Suapp {
 
     bool public auctionHasStarted = false;
 
-    //TODO: delete
-    event AuctionStateUpdate(
-        address indexed auctioneerSUAVE,
-        address indexed auctionWinnerL1,
-        address indexed auctionWinnerSuave,
-        address oracle,
-        address nftHoldingAddress,
-        address nftContract,
-        uint256 winningBid,
-        uint256 tokenId,
-        uint256 auctionEndTime,
-        uint256 minimalBid,
-        bool auctionHasStarted
-    );
-
     /**
      * @notice Creates the sealed auction contract to auction off a NFT.
      * @param nftContractAddress contract address of the to be auctioned off NFT.
@@ -196,23 +181,7 @@ contract SealedAuction is Suapp {
     // simple callback to publish offchain events
     function onchainCallback() public emitOffchainLogs {}
 
-    //TODO delete
-    function emitCurrentState() public returns (bytes memory) {
-        emit AuctionStateUpdate(
-            auctioneerSUAVE,
-            auctionWinnerL1,
-            auctionWinnerSuave,
-            oracle,
-            nftHoldingAddress,
-            nftContract,
-            winningBid,
-            tokenId,
-            auctionEndTime,
-            minimalBid,
-            auctionHasStarted
-        );
-        return abi.encodeWithSelector(this.onchainCallback.selector);
-    }
+
     // ===========================================================
     // Section: SETUP AUCTION RELATED FUNCTIONALITY
     // ===========================================================
@@ -315,20 +284,6 @@ contract SealedAuction is Suapp {
             NFTowner == nftHoldingAddress,
             "The NFT was not transferred yet"
         );
-        return abi.encodeWithSelector(this.startAuctionOnchain.selector);
-    }
-
-    /**
-     * @notice This is a test function for local debugging only. It does not require the NFT to be sent.
-     */
-    function startAuctionTest()
-        public
-        onlyAuctioneer
-        auctionNotStarted
-        confidential
-        validAuctionEndTime
-        returns (bytes memory)
-    {
         return abi.encodeWithSelector(this.startAuctionOnchain.selector);
     }
 
@@ -600,17 +555,6 @@ contract SealedAuction is Suapp {
         revealedL1Addresses = _l1Addresses;
     }
 
-    function debug() external confidential returns (bytes memory) {
-        return
-            abi.encodeWithSelector(
-                this.endAuctionOnchain.selector,
-                auctioneerSUAVE,
-                auctioneerSUAVE,
-                0,
-                new address[](0)
-            );
-    }
-
     /**
      * @notice Central method for all to claim their valuables. Losers get their bid back;
      * @notice Winner gets the NFT; Auctioneer gets the winning bid.
@@ -623,7 +567,6 @@ contract SealedAuction is Suapp {
     ) external confidential winnerRegistered returns (bytes memory) {
         
         address returnAddressL1 = toAddress(returnAddress);
-        emit TestEvent(toHexString(abi.encodePacked(returnAddressL1)));
         // when no one bid => auctioneer gets the NFT
         if (msg.sender == auctioneerSUAVE) {
             // auctioneer has to be checked first. Do not change the order!
@@ -670,16 +613,6 @@ contract SealedAuction is Suapp {
             tokenId,
             privateKeysL1[address(this)]
         );
-    }
-
-    //TODO delete
-    function hasPrivateKeyRecord(address bidder) public view returns (bool) {
-        Suave.DataId dataId = privateKeysL1[bidder];
-        // Assuming Suave.DataId has a field 'id' of type bytes32 or similar
-        // If it's bytes32:
-        //return dataId != bytes16(0);
-        // If it's bytes:
-        return Suave.DataId.unwrap(dataId) != bytes16(0);
     }
 
     /**

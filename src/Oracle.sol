@@ -33,6 +33,9 @@ contract Oracle is Suapp {
         _;
     }
 
+    event ErrorEvent(string errorMsg);
+    event TxEvent(string txHash);
+
     function onchainCallback() public emitOffchainLogs {}
 
     // =============================================================
@@ -195,12 +198,8 @@ contract Oracle is Suapp {
                 payload,
                 suaveDataID
             );
-        }else{        
-            emit TestEvent("not enough money to return NFT");
-
-            }
-            /*  else {
-            revert(
+        } else {
+            emit ErrorEvent(
                 string.concat(
                     "The account ",
                     toHexString(abi.encodePacked(from)),
@@ -209,7 +208,7 @@ contract Oracle is Suapp {
                     " does not have enough funds to transfer the NFT"
                 )
             );
-        } */
+        }
     }
 
     function transferETH(
@@ -232,11 +231,8 @@ contract Oracle is Suapp {
                 "",
                 suaveDataID
             );
-        }else{
-                    emit TestEvent("NOT ENOUGH MONEY TO RETURN MONEY");
-
-        } /* else {
-            revert(
+        } else {
+            emit ErrorEvent(
                 string.concat(
                     "The account ",
                     toHexString(abi.encodePacked(publicL1Address)),
@@ -245,7 +241,7 @@ contract Oracle is Suapp {
                     " does not have enough funds to transfer ETH"
                 )
             );
-        } */
+        }
     }
 
     function transferETHForNFT(
@@ -268,6 +264,16 @@ contract Oracle is Suapp {
                 80000 * (gasPrice * 2), // overapproximation out of stability reasons
                 "",
                 suaveDataID
+            );
+        }else {
+            emit ErrorEvent(
+                string.concat(
+                    "The account ",
+                    toHexString(abi.encodePacked(publicL1Address)),
+                    " with balance: ",
+                    toString(value),
+                    " does not have enough funds to fund the holding address"
+                )
             );
         }
     }
@@ -416,7 +422,7 @@ contract Oracle is Suapp {
         );
         bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
         bytes memory txHash = abi.encodePacked(keccak256(rlpEncodedTxn));
-        emit TestEvent(string.concat("Hash of transaction " , toHexString(txHash)));
+        emit TxEvent(toHexString(txHash));
 
         sendRawTxHttpRequest(rlpEncodedTxn);
     }
