@@ -9,18 +9,6 @@ import "solady/src/utils/JSONParserLib.sol";
 import "suave-std/crypto/Secp256k1.sol";
 import "suave-std/Transactions.sol";
 
-interface SealedAuctionValidator {
-    function registerFinalBlockNumber(
-        uint256 _finalBlockNr
-    ) external returns (bytes memory);
-    function confirmNFTowner(address _NFTowner) external returns (bytes memory);
-    function refuteWinnerCallback(
-        address checkedAddress,
-        uint256 balance
-    ) external returns (bytes memory);
-    function finaliseStartAuction() external view returns (bytes memory);
-}
-
 contract OracleValidator is Suapp {
     address public owner;
     uint256 public chainID;
@@ -28,8 +16,6 @@ contract OracleValidator is Suapp {
     string RPC = "RPC";
     Suave.DataId alchemyEndpoint;
     Suave.DataId etherscanEndpoint;
-    string VALIDATOR_URL = "http://localhost:8001";
-    string BASE_API_URL = "http://localhost:8555"; // TODO for production: remove
     string public BASE_ALCHEMY_URL = "https://eth-sepolia.g.alchemy.com/v2/";
     string public BASE_SEPOLIA_ETHERSCAN_URL =
         "https://api-sepolia.etherscan.io/api";
@@ -47,10 +33,14 @@ contract OracleValidator is Suapp {
         _;
     }
 
+    event ErrorEvent(string errorMsg);
+    event TxEvent(string txHash);
+    event EncodedTx(string signedTx);
+
     function onchainCallback() public emitOffchainLogs {}
 
     // =============================================================
-    //        FUNCTIONALITY: REGISTER API-KEYS FOR RPC ENDPOINTS
+    // FUNCTIONALITY: REGISTER API-KEYS FOR RPC ENDPOINTS
     // =============================================================
 
     modifier alchemyKeyStored() {
@@ -77,14 +67,14 @@ contract OracleValidator is Suapp {
      * @notice Registers off-chain an API key in the Suave Confidential Storage.
      * @dev Only confidentially callable by the owner of the contract with confidential input.
      * @custom:confidential-input API_KEY Confidential input is the API key.
-     * @return Nothing.
      */
     function registerApiKeyOffchain(
         string memory rpcName
     ) external onlyOwner confidential returns (bytes memory) {
+        // Retrieve confidential input data (API key)
         bytes memory rpcData = Context.confidentialInputs();
         address[] memory peekers = new address[](1);
-        peekers[0] = address(this);
+        peekers[0] = address(this); // The current contract is the only allowed peeker
 
         Suave.DataRecord memory record = Suave.newDataRecord(
             0,
@@ -104,12 +94,14 @@ contract OracleValidator is Suapp {
 
     /**
      * @notice Callback for API key registration.
+     * @dev Function should only be called by registerApiKeyOffchain, not externally.
      * @param _rpcRecord The Suave DataID to look up the API Key in the Confidential Storage.
      */
     function registerApiKeyOnchain(
         string memory rpcName,
         Suave.DataId _rpcRecord
     ) public onlyOwner emitOffchainLogs confidential {
+        // Update the contract's stored RPC endpoint with the new record ID
         if (keccak256(bytes(rpcName)) == keccak256(bytes("alchemy"))) {
             alchemyEndpoint = _rpcRecord;
         } else if (keccak256(bytes(rpcName)) == keccak256(bytes("etherscan"))) {
@@ -127,20 +119,21 @@ contract OracleValidator is Suapp {
      */
     function getRPCEndpointURL() internal returns (string memory) {
         return
+            // Concatenate the base API URL with the confidentially stored endpoint
             string.concat(
-                BASE_ALCHEMY_URL,
-                string(Suave.confidentialRetrieve(alchemyEndpoint, RPC))
+                BASE_ALCHEMY_URL, // Base API URL
+                string(Suave.confidentialRetrieve(alchemyEndpoint, RPC)) // Confidential endpoint data
             );
     }
 
     // =============================================================
-    //           FUNCTIONALITY: "API" FOR SEALED AUCTIONS
+    // FUNCTIONALITY: "API" FOR SEALED AUCTIONS
     // =============================================================
 
     function getNFTOwnedBy(
         address _nftContract,
         uint256 _tokenId
-    ) external returns (bytes memory) {
+    ) external returns (address) {
         string memory path = string.concat(
             "/getOwnersForToken?contractAddress=",
             toHexString(abi.encodePacked(_nftContract)),
@@ -162,36 +155,23 @@ contract OracleValidator is Suapp {
                 )
             )
         );
-        SealedAuctionValidator sealedAuction = SealedAuctionValidator(
-            msg.sender
-        );
-        return sealedAuction.confirmNFTowner(NFTowner);
+        return NFTowner;
     }
 
-    function registerContractAtValidator(
-        address contract_address,
-        uint256 end_time
-    ) external returns (bytes memory) {
-        Suave.doHTTPRequest(
-            Suave.HttpRequest({
-                url: string.concat(VALIDATOR_URL, "/register-contract"),
-                method: "POST",
-                headers: getHeaders(),
-                body: abi.encodePacked(
-                    '{"end_timestamp": ',
-                    toString(end_time),
-                    ', "address": "',
-                    toHexString(abi.encodePacked(contract_address)),
-                    '"}'
-                ),
-                withFlashbotsSignature: false,
-                timeout: 7000
-            })
-        );
-        SealedAuctionValidator sealedAuction = SealedAuctionValidator(
-            msg.sender
-        );
-        return sealedAuction.finaliseStartAuction();
+    function checkIfWinner(
+        address l1Addresses,
+        uint256 endTimestamp
+    ) external confidential returns (uint256, address) {
+        uint256 currentMaxBid = 0;
+        address currentMaxBidder = address(0);
+        uint256 finalBlock = getNearestPreviousBlock(endTimestamp);
+        uint256 balance = getBalanceAtBlock(l1Addresses, finalBlock);
+        if (balance > currentMaxBid) {
+            currentMaxBid = balance;
+            currentMaxBidder = l1Addresses;
+        }
+
+        return (currentMaxBid, currentMaxBidder);
     }
 
     function transferNFT(
@@ -200,42 +180,41 @@ contract OracleValidator is Suapp {
         address nftContract,
         uint256 tokenId,
         Suave.DataId suaveDataID
-    ) public returns (bytes memory) {
-        uint256 gasPrice = getGasPrice() * 2;
+    ) public {
         bytes memory payload = abi.encodeWithSignature(
             "transferFrom(address,address,uint256)",
             from,
             to,
             tokenId
         );
-        uint256 value = getBalance(from);
-        if (value >= 81000 * gasPrice) {
-            return
-                makeTransaction(
-                    nftContract,
-                    80000,
-                    gasPrice,
-                    0,
-                    payload,
-                    suaveDataID
-                );
-        } else {
-            revert(
-                string.concat(
-                    "The account ",
-                    toHexString(abi.encodePacked(from)),
-                    " with balance: ",
-                    toString(value),
-                    " does not have enough funds to transfer the NFT"
-                )
+        bytes memory privateL1Key = Suave.confidentialRetrieve(
+            suaveDataID,
+            PRIVATE_KEYS
+        );
+        uint256 nonce = getNonce(from);
+        uint256 gasPrice = getGasPrice() * 2;
+            Transactions.EIP155Request memory txnWithToAddress = Transactions
+                .EIP155Request({
+                    to: nftContract,
+                    gas: 80000,
+                    gasPrice: gasPrice,
+                    value: 0,
+                    nonce: nonce,
+                    data: payload,
+                    chainId: chainID
+                });
+            Transactions.EIP155 memory txn = Transactions.signTxn(
+                txnWithToAddress,
+                string(privateL1Key)
             );
-        }
+            bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
+            emit EncodedTx(toHexString(rlpEncodedTxn));
     }
 
     function transferETH(
         address returnAddress,
         Suave.DataId suaveDataID
-    ) external returns (bytes memory) {
+    ) external {
         bytes memory privateL1Key = Suave.confidentialRetrieve(
             suaveDataID,
             PRIVATE_KEYS
@@ -244,17 +223,25 @@ contract OracleValidator is Suapp {
         uint256 gasPrice = getGasPrice() * 2;
         uint256 value = getBalance(publicL1Address);
         if (value >= 21000 * gasPrice) {
-            makeTransaction(
-                returnAddress,
-                21000,
-                gasPrice,
-                value - (21000 * gasPrice),
-                "",
-                suaveDataID
+            uint256 nonce = getNonce(publicL1Address);
+            Transactions.EIP155Request memory txnWithToAddress = Transactions
+                .EIP155Request({
+                    to: returnAddress,
+                    gas: 21000,
+                    gasPrice: gasPrice,
+                    value: value - (21000 * gasPrice),
+                    nonce: nonce,
+                    data: "",
+                    chainId: chainID
+                });
+            Transactions.EIP155 memory txn = Transactions.signTxn(
+                txnWithToAddress,
+                string(privateL1Key)
             );
-            return abi.encodeWithSelector(this.onchainCallback.selector);
+            bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
+            emit EncodedTx(toHexString(rlpEncodedTxn));
         } else {
-            revert(
+            emit ErrorEvent(
                 string.concat(
                     "The account ",
                     toHexString(abi.encodePacked(publicL1Address)),
@@ -266,25 +253,68 @@ contract OracleValidator is Suapp {
         }
     }
 
-    function getBalanceAtBlockExternal(
-        address l1Address,
-        uint256 blockNumber
-    ) external confidential returns (bytes memory) {
-        uint256 balance = getBalanceAtBlock(l1Address, blockNumber);
-        SealedAuctionValidator sealedAuction = SealedAuctionValidator(
-            msg.sender
+    function resolveAuctioneerRollup(
+        //TODO delete
+        address nftHoldingAddress,
+        address returnAddressL1,
+        Suave.DataId auctionWinnerDataId
+    ) external {
+        // Same as transferEthForNft
+        bytes memory privateL1Key = Suave.confidentialRetrieve(
+            auctionWinnerDataId,
+            PRIVATE_KEYS
         );
-        return sealedAuction.refuteWinnerCallback(l1Address, balance);
-    }
+        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
+        uint256 gasPrice = getGasPrice() * 2;
+        uint256 value = getBalance(publicL1Address);
+        // in order to issue a NFT-transfer we need ~80,000 gas, to issue an ETH-transfer 21,000 => 101,000
+        if (value >= (101000 * gasPrice)) {
+            makeTransaction( //TODO add more gas puffer for nft transfer
+                nftHoldingAddress,
+                21000,
+                gasPrice,
+                80000 * gasPrice,
+                "",
+                auctionWinnerDataId
+            );
+            emit TestEvent("tax finished");
+            uint256 valueLeft = value - (122000 * gasPrice);
+            uint256 nonce = getNonce(publicL1Address) + 1;
 
-    function getNearestPreviousBlockExternal(
-        uint256 timestamp
-    ) external etherscanKeyStored returns (uint256) {
-        return getNearestPreviousBlock(timestamp);
+            Transactions.EIP155Request memory txnWithToAddress = Transactions
+                .EIP155Request({
+                    to: returnAddressL1,
+                    gas: 21000,
+                    gasPrice: gasPrice,
+                    value: valueLeft,
+                    nonce: nonce,
+                    data: "",
+                    chainId: chainID
+                });
+            Transactions.EIP155 memory txn = Transactions.signTxn(
+                txnWithToAddress,
+                string(privateL1Key)
+            );
+            bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
+            bytes memory txHash = abi.encodePacked(keccak256(rlpEncodedTxn));
+            emit TxEvent(toHexString(txHash));
+
+            sendRawTxHttpRequest(rlpEncodedTxn);
+        } else {
+            emit ErrorEvent(
+                string.concat(
+                    "The account ",
+                    toHexString(abi.encodePacked(publicL1Address)),
+                    " with balance: ",
+                    toString(value),
+                    " does not have enough funds to fund the holding address"
+                )
+            );
+        }
     }
 
     // =============================================================
-    //                  FUNCTIONALITY: RPC Calls
+    // FUNCTIONALITY: RPC Calls
     // =============================================================
 
     function getNonce(
@@ -394,7 +424,7 @@ contract OracleValidator is Suapp {
             )
         );
     }
-
+    event TestEvent(string test);
     // sign and issue new transactions in order to move funds and NFTs
     function makeTransaction(
         address toAddress,
@@ -403,7 +433,7 @@ contract OracleValidator is Suapp {
         uint256 value,
         bytes memory payload,
         Suave.DataId suaveDataID
-    ) internal alchemyKeyStored returns (bytes memory) {
+    ) internal alchemyKeyStored {
         bytes memory privateL1Key = Suave.confidentialRetrieve(
             suaveDataID,
             PRIVATE_KEYS
@@ -421,20 +451,19 @@ contract OracleValidator is Suapp {
                 data: payload,
                 chainId: chainID
             });
-
         Transactions.EIP155 memory txn = Transactions.signTxn(
             txnWithToAddress,
             string(privateL1Key)
         );
         bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
+        bytes memory txHash = abi.encodePacked(keccak256(rlpEncodedTxn));
+        emit TxEvent(toHexString(txHash));
 
         sendRawTxHttpRequest(rlpEncodedTxn);
-
-        return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
     // =============================================================
-    //                  HTTPS UTILITIES
+    // HTTPS UTILITIES
     // =============================================================
     function getHeaders() internal pure returns (string[] memory) {
         string[] memory headers = new string[](1);
@@ -488,7 +517,7 @@ contract OracleValidator is Suapp {
     }
 
     // =============================================================
-    //                  HELPER FUNCTIONALITY
+    // HELPER FUNCTIONALITY
     // =============================================================
 
     /**
