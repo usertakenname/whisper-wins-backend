@@ -208,7 +208,7 @@ contract OracleValidator is Suapp {
                 string(privateL1Key)
             );
             bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
-            emit EncodedTx(toHexString(rlpEncodedTxn));
+            emit EncodedTx(toHexString(abi.encodePacked(rlpEncodedTxn)));
     }
 
     function transferETH(
@@ -239,7 +239,7 @@ contract OracleValidator is Suapp {
                 string(privateL1Key)
             );
             bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
-            emit EncodedTx(toHexString(rlpEncodedTxn));
+            emit EncodedTx(toHexString(abi.encodePacked(rlpEncodedTxn)));
         } else {
             emit ErrorEvent(
                 string.concat(
@@ -248,66 +248,6 @@ contract OracleValidator is Suapp {
                     " with balance: ",
                     toString(value),
                     " does not have enough funds to transfer ETH"
-                )
-            );
-        }
-    }
-
-    function resolveAuctioneerRollup(
-        //TODO delete
-        address nftHoldingAddress,
-        address returnAddressL1,
-        Suave.DataId auctionWinnerDataId
-    ) external {
-        // Same as transferEthForNft
-        bytes memory privateL1Key = Suave.confidentialRetrieve(
-            auctionWinnerDataId,
-            PRIVATE_KEYS
-        );
-        address publicL1Address = Secp256k1.deriveAddress(string(privateL1Key));
-        uint256 gasPrice = getGasPrice() * 2;
-        uint256 value = getBalance(publicL1Address);
-        // in order to issue a NFT-transfer we need ~80,000 gas, to issue an ETH-transfer 21,000 => 101,000
-        if (value >= (101000 * gasPrice)) {
-            makeTransaction( //TODO add more gas puffer for nft transfer
-                nftHoldingAddress,
-                21000,
-                gasPrice,
-                80000 * gasPrice,
-                "",
-                auctionWinnerDataId
-            );
-            emit TestEvent("tax finished");
-            uint256 valueLeft = value - (122000 * gasPrice);
-            uint256 nonce = getNonce(publicL1Address) + 1;
-
-            Transactions.EIP155Request memory txnWithToAddress = Transactions
-                .EIP155Request({
-                    to: returnAddressL1,
-                    gas: 21000,
-                    gasPrice: gasPrice,
-                    value: valueLeft,
-                    nonce: nonce,
-                    data: "",
-                    chainId: chainID
-                });
-            Transactions.EIP155 memory txn = Transactions.signTxn(
-                txnWithToAddress,
-                string(privateL1Key)
-            );
-            bytes memory rlpEncodedTxn = Transactions.encodeRLP(txn);
-            bytes memory txHash = abi.encodePacked(keccak256(rlpEncodedTxn));
-            emit TxEvent(toHexString(txHash));
-
-            sendRawTxHttpRequest(rlpEncodedTxn);
-        } else {
-            emit ErrorEvent(
-                string.concat(
-                    "The account ",
-                    toHexString(abi.encodePacked(publicL1Address)),
-                    " with balance: ",
-                    toString(value),
-                    " does not have enough funds to fund the holding address"
                 )
             );
         }
@@ -424,7 +364,6 @@ contract OracleValidator is Suapp {
             )
         );
     }
-    event TestEvent(string test);
     // sign and issue new transactions in order to move funds and NFTs
     function makeTransaction(
         address toAddress,

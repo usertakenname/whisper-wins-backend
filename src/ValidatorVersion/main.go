@@ -292,7 +292,7 @@ func deployOracle() *framework.Contract {
 	return oracle
 }
 
-func init() { // DEPRECATED: for toliman suave chain dial https://rpc.toliman.suave.flashbots.net
+func init() { // For toliman suave chain dial https://rpc.toliman.suave.flashbots.net (Deprecated); use local suave chain
 	var err error
 	SuaveClient, err = ethclient.Dial("http://localhost:8545")
 	checkError(err)
@@ -307,9 +307,13 @@ func init() { // DEPRECATED: for toliman suave chain dial https://rpc.toliman.su
 	if privKey == "" {
 		log.Fatal("ENTER PRIVATE L1 KEY in .env file!")
 	}
+	sepoliaApiKey := os.Getenv("SEPOLIA_API_KEY")
+	if sepoliaApiKey == "" {
+		log.Fatal("ENTER your Sepolia API key in .env file!")
+	}
 	L1DevAccount = framework.NewPrivKeyFromHex(privKey)
 	SuaveDevAccount = framework.NewPrivKeyFromHex(privKeySuave)
-	L1client, err = ethclient.Dial("https://sepolia.infura.io/v3/93302e94e89f41afafa250f8dce33086") //TODO CHANGE TO ENV
+	L1client, err = ethclient.Dial("https://sepolia.infura.io/v3/" + sepoliaApiKey)
 	checkError(err)
 	L1chainID = big.NewInt(SEPOLIA_CHAIN_ID)
 	writeToFile = true
@@ -356,15 +360,14 @@ func sendSignedTx(signedTxHex string) {
 }
 
 func main() {
-	//args := os.Args
+	args := os.Args
 	if true {
-		//num_bidder, err := strconv.Atoi(args[1])
-		//checkError(err)
-		num_biddder := 4
-		writeTextToFile("\nStarting the rollup auction with bidder amount: " + fmt.Sprintf("%d", num_biddder))
-		procedure(num_biddder)
+		num_bidder, err := strconv.Atoi(args[1])
+		checkError(err)
+		writeTextToFile("\nStarting the rollup auction with bidder amount: " + fmt.Sprintf("%d", num_bidder))
+		procedure(num_bidder)
 	} else {
-		claimProcedure(framework.NewPrivKeyFromHex("099046940d267eca6761bafe645c17733f3b2eaf952ee7c866b601abb07ea0ac"))
+		claimProcedure(framework.NewPrivKeyFromHex("5973cd16fdfd72de60b76ca3800c3874dcfe09ce5007dd5944badbe32e7113b7"))
 	}
 }
 
@@ -377,17 +380,27 @@ func procedure(num_bidder int) {
 	oracleAddress := deployOracle().Raw().Address()
 
 	fmt.Println("1. Deploy Sealed Auction contract on TOLIMAN SUAVE CHAIN")
-	auctionInSeconds := int64(num_bidder * 50)
-	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
+	auctionInSeconds := int64(num_bidder * 60)
+	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds + 60))
 	refuteTime := big.NewInt(30)
-	nftTokenID, minimalBiddingAmount := big.NewInt(3), big.NewInt(1000000000)               // 1 GWEI
-	nftContractAddress := common.HexToAddress("0x752dDaf94E17df2827F2140998df02Bfd998F1FB") //TODO REPLACE WITH ENV
+	minimalBiddingAmount := big.NewInt(1000000000) // 1 GWEI
+	nftAddressString := os.Getenv("NFT_CONTRACT_ADDRESS")
+	if nftAddressString == "" {
+		log.Fatal("ENTER NFT_CONTRACT_ADDRESS in .env file!")
+	}
+	nftContractAddress := common.HexToAddress(nftAddressString)
+	tokenIDString := os.Getenv("NFT_TOKEN_ID")
+	if tokenIDString == "" {
+		log.Fatal("ENTER NFT_TOKEN_ID in .env file!")
+	}
+	tokenIDUint, err := strconv.ParseUint(tokenIDString, 10, 64)
+	checkError(err)
+	nftTokenID := new(big.Int).SetUint64(tokenIDUint)
 	contract := deployContractWithConstructor(path, SuaveDevAccount, nftContractAddress, nftTokenID, auctionEndTime, minimalBiddingAmount, oracleAddress, refuteTime)
 
 	fmt.Println("2 Setup Auction")
 	setUpAuction(contract)
 	nftHoldingAddress := getFieldFromContract(contract, "nftHoldingAddress")[0].(common.Address)
-	fundL1Account(nftHoldingAddress, big.NewInt(1000000000000000))
 	getPrivKey(contract)
 
 	fmt.Println("3. Moving the NFT from auctioneer to holding address")
@@ -395,13 +408,11 @@ func procedure(num_bidder int) {
 
 	fmt.Println("4. Start Auction")
 	startAuction(contract)
-	/* 	_, err = contract.SendConfidentialRequest("startAuctionTest", nil, nil) // TODO change to actual start auction
-	   	checkError(err) */
-	num_accounts := num_bidder
-	fmt.Println("5. Place bid with ", num_accounts, " accounts")
+
+	fmt.Println("5. Place bid with ", num_bidder, " accounts")
 	bidders := make([]*framework.PrivKey, 0)
 
-	for i := range num_accounts {
+	for i := range num_bidder {
 		fmt.Println("Creating account #", i)
 		bidders = append(bidders, createAccount())
 		fmt.Println("Private key of bidder: ", hex.EncodeToString(bidders[i].Priv.D.Bytes()))
@@ -416,7 +427,7 @@ func procedure(num_bidder int) {
 	getFieldFromContract(contract, "auctionWinnerL1")
 	getFieldFromContract(contract, "auctionWinnerSuave")
 	getFieldFromContract(contract, "winningBid")
-	for i := range num_accounts {
+	for i := range num_bidder {
 		res := contract.Call("revealedL1Addresses", []interface{}{big.NewInt(int64(i))})
 		fmt.Println("bidder ", i, " ", res[0])
 		receipt, err := contract.SendConfidentialRequest("refuteWinner", []any{res[0]}, nil)
@@ -431,10 +442,12 @@ func procedure(num_bidder int) {
 		getFieldFromContract(contract, "auctionWinnerSuave")
 		getFieldFromContract(contract, "winningBid")
 	}
-	/* 	fmt.Println("Waiting ", refuteTime, " seconds for the refute time to be over.")
-	   	time.Sleep(time.Duration(refuteTime.Int64()) * time.Second) */
+
 	fmt.Println("7b. Claim: Get winning bid as auctioneer")
 	claim(contract)
+
+	// Funding the nftHoldingAddress so the NFT can be returned
+	fundL1Account(nftHoldingAddress, big.NewInt(1000000000000000))
 
 	fmt.Println("7a. Claim: get NFT for winner & return bids")
 	for i := range num_bidder {
@@ -591,16 +604,18 @@ func fundSuaveAccount(account common.Address, fundBalance *big.Int) {
 }
 
 func placeBid(privKey *framework.PrivKey, bidContract *framework.Contract) {
+	/* 	// this could places a certain amount, but we rather send all funds
+	   	amount := big.NewInt(15000000000000 + int64(rand.Intn(2000))) // (15.000 GWEI + ~2000)
+	   	// L1: create tx to send money
+	   	fmt.Println("Place bid with amount ", amount, " to adddress ", toAddress)
+	   	makeTransaction(privKey, amount, toAddress)
+	   	fmt.Println(privKey.Address(), " bid ", amount, " to ", toAddress) */
+
 	toAddress := common.HexToAddress(getBiddingAddress(bidContract))
-	//amount := big.NewInt(15000000000000 + int64(rand.Intn(2000))) // (15.000 GWEI + ~2000)
-	// L1: create tx to send money
-	//fmt.Println("Place bid with amount ", amount, " to adddress ", toAddress)
 	sendAllBalance(privKey, toAddress)
-	//makeTransaction(privKey, amount, toAddress)
-	//fmt.Println(privKey.Address(), " bid ", amount, " to ", toAddress)
 }
 
-// TODO DELETE
+// TODO This method is just for debugging purpose, the getPrivKey is not in the Production Contract
 func getPrivKey(contract *framework.Contract) string {
 	receipt, err := contract.SendConfidentialRequest("getPrivKey", nil, nil)
 	checkError(err)

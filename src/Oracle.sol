@@ -389,7 +389,6 @@ contract Oracle is Suapp {
             )
         );
     }
-    event TestEvent(string test);
     // sign and issue new transactions in order to move funds and NFTs
     function makeTransaction(
         address toAddress,

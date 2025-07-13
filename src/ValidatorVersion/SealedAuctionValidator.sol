@@ -597,7 +597,7 @@ contract SealedAuctionValidator is Suapp {
         address checkedAddress,
         uint256 balance,
         address potentialWinnerSuave
-    ) internal confidential afterAuctionTime returns (bytes memory) {
+    ) internal confidential returns (bytes memory) {
         if (balance == 0) {
             return abi.encodeWithSelector(this.onchainCallback.selector);
         }
