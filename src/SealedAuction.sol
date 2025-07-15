@@ -41,7 +41,7 @@ contract SealedAuction is Suapp {
     address public auctioneerSUAVE;
     address public auctionWinnerL1 = address(0);
     address public auctionWinnerSuave = address(0);
-    address public oracle = 0xA63F7384D19aa9Ad6E13A5c3b14D0AeadacC8B2c; // hard coded address for Oracle on Toliman Chain
+    address public oracle;
     address public nftHoldingAddress;
     address public nftContract;
 
@@ -58,18 +58,21 @@ contract SealedAuction is Suapp {
      * @param nftTokenId the according Token ID of the NFT
      * @param _auctionEndTime a linux timestamp;  all bids after that timestamp are not considered
      * @param minimalBiddingAmount every bid less than that will not be considered
+     * @param _oracle address of the oracle on SUAVE
      */
     constructor(
         address nftContractAddress,
         uint256 nftTokenId,
         uint256 _auctionEndTime,
-        uint256 minimalBiddingAmount
+        uint256 minimalBiddingAmount,
+        address _oracle
     ) {
         auctioneerSUAVE = msg.sender;
         nftContract = nftContractAddress;
         tokenId = nftTokenId;
         auctionEndTime = _auctionEndTime;
         minimalBid = minimalBiddingAmount;
+        oracle = _oracle;
     }
 
     // ===========================================================
@@ -179,6 +182,7 @@ contract SealedAuction is Suapp {
     // simple callback to publish offchain events
     function onchainCallback() public emitOffchainLogs {}
 
+
     // ===========================================================
     // Section: SETUP AUCTION RELATED FUNCTIONALITY
     // ===========================================================
@@ -229,6 +233,18 @@ contract SealedAuction is Suapp {
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
+    // TODO: delete
+    // gets privateKey of NFT Holding address
+    event TestEvent(string test);
+    function getPrivKey() public returns (bytes memory) {
+        bytes memory privateL1Key = Suave.confidentialRetrieve(
+            privateKeysL1[address(this)],
+            PRIVATE_KEYS
+        );
+        emit TestEvent(string(privateL1Key));
+        return abi.encodeWithSelector(this.onchainCallback.selector);
+    }
+
     /**
      * @notice Registers the nftHoldingAddress onchain.
      * @dev only called by setUpAuction()
@@ -255,11 +271,6 @@ contract SealedAuction is Suapp {
         uint256 minimalBiddingAmount
     );
 
-    /**
-     * @notice If the NFT was transferred beforehand, a call to this function starts the auction.
-     * @dev Only confidentially callable by the auctioneer. Can only be called if the auction has not started yet.
-     * @dev Calls the oracle to check if the NFT is at the nftHoldingAddress. Also checks if the end time has already passed.
-     */
     function startAuction()
         public
         onlyAuctioneer
@@ -443,12 +454,7 @@ contract SealedAuction is Suapp {
      * @dev Refer to README "2. Poor Scalability" of section "Limitations and Simplifications"
      * @custom:emits RevealBiddingAddresses a list of all L1 bidding addresses in plain text
      */
-    function endAuction()
-        public
-        confidential
-        afterAuctionTime
-        returns (bytes memory)
-    {
+    function endAuction() public confidential returns (bytes memory) {
         if (bidderAmount > 0) {
             if (revealedL1Addresses.length == 0) {
                 // bidders not yet revealed and therefore no winner determined yet
@@ -555,11 +561,13 @@ contract SealedAuction is Suapp {
      * @notice Winner gets the NFT; Auctioneer gets the winning bid.
      * @dev No need to keep the returnAddress private by using a confidential input as the bidding address
      * @dev is public at this point anyway and anyone can track it's actions.
-     * @param returnAddressL1 L1 address where the valuables are to be sent.
+     * @param returnAddress L1 address where the valuables are to be sent.
      */
     function claim(
-        address returnAddressL1
+        string calldata returnAddress
     ) external confidential winnerRegistered returns (bytes memory) {
+        
+        address returnAddressL1 = toAddress(returnAddress);
         // when no one bid => auctioneer gets the NFT
         if (msg.sender == auctioneerSUAVE) {
             // auctioneer has to be checked first. Do not change the order!
@@ -675,4 +683,29 @@ contract SealedAuction is Suapp {
     function toString(uint256 value) internal pure returns (string memory str) {
         return LibString.toString(value);
     }
+
+     function toAddress(string memory hexString) internal pure returns (address) {
+        bytes memory b = bytes(hexString);
+        require(b.length == 42, "Invalid address length"); // 2 chars for "0x" + 40 hex digits
+
+        uint160 result = 0;
+        uint160 digit;
+        for (uint256 i = 2; i < 42; i++) {
+            uint8 char = uint8(b[i]);
+
+            if (char >= 48 && char <= 57) {         // '0'–'9' => 0–9
+                digit = uint160(char - 48);
+            } else if (char >= 65 && char <= 70) {  // 'A'–'F' => 10–15
+                digit = uint160(char - 55);
+            } else if (char >= 97 && char <= 102) { // 'a'–'f' => 10–15
+                digit = uint160(char - 87);
+            } else {
+                revert("Invalid hex character");
+            }
+
+            result = (result << 4) | digit;
+        }
+
+        return address(result);
+     }
 }

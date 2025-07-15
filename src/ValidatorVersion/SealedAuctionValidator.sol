@@ -495,7 +495,6 @@ contract SealedAuctionValidator is Suapp {
     /**
      * @notice Ends the auction by setting the winner. All bids being placed afterwards are invalid.
      * @dev Pretty expensive, as it calls the oracle to fetch the balance of every bidding address one by one.
-     * @dev Refer to README "2. Poor Scalability" of section "Limitations and Simplifications"
      * @custom:emits RevealBiddingAddresses a list of all L1 bidding addresses in plain text
      */
     function endAuction() public confidential returns (bytes memory) {

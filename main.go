@@ -138,7 +138,7 @@ var L1chainID *big.Int
 var L1DevAccount *framework.PrivKey
 var SuaveDevAccount *framework.PrivKey
 var writeToFile bool // create a measurements file for gas costs
-var path = "SealedAuctionLocalTesting.sol/SealedAuction.json"
+var path = "SealedAuction.sol/SealedAuction.json"
 var fr *framework.Framework
 var oracle *framework.Contract
 
@@ -164,10 +164,6 @@ func printReceipt(receipt *types.Receipt, contract *framework.Contract) {
 			event, err := contract.Abi.Events["NFTHoldingAddressEvent"].ParseLog(receipt.Logs[i])
 			checkError(err)
 			fmt.Println("NFTHoldingAddressEvent : ", event["nftHoldingAddress"])
-		case contract.Abi.Events["TestEvent"].ID: // TODO DELETE
-			event, err := contract.Abi.Events["TestEvent"].ParseLog(receipt.Logs[i])
-			checkError(err)
-			fmt.Println("NFTHoldingAddrTestEventessEvent : ", event["test"])
 		case oracle.Abi.Events["ErrorEvent"].ID:
 			event, err := oracle.Abi.Events["ErrorEvent"].ParseLog(receipt.Logs[i])
 			checkError(err)
@@ -321,7 +317,7 @@ func init() { // DEPRECATED: for toliman suave chain dial https://rpc.toliman.su
 }
 
 // with already existing contract
-func claimProcedure(bidder *framework.PrivKey) {
+func claimProcedure(bidder *framework.PrivKey) { //TODO delete
 	gasPrice, err := SuaveClient.SuggestGasPrice(context.Background())
 	checkError(err)
 	nftAddressString := os.Getenv("NFT_CONTRACT_ADDRESS")
@@ -353,7 +349,7 @@ func main() {
 		writeTextToFile("\nStarting the auction with bidder amount: " + fmt.Sprintf("%d", num_bidder))
 		procedure(num_bidder)
 	} else {
-		claimProcedure(framework.NewPrivKeyFromHex("ccfba79950312ed8644fbb5ffb74342d29f73e3bd737926fe4a455c782763aee"))
+		claimProcedure(framework.NewPrivKeyFromHex("7527938904d97f373c9c60c4c1be3e900e4fd169523f34a6a5799383afe50f1c"))
 	}
 }
 
@@ -366,7 +362,7 @@ func procedure(num_bidder int) {
 	oracleAddress := deployOracle().Raw().Address()
 
 	fmt.Println("1. Deploy Sealed Auction contract on TOLIMAN SUAVE CHAIN")
-	auctionInSeconds := int64(160)
+	auctionInSeconds := int64(num_bidder*60 + 60)
 	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
 	minimalBiddingAmount := big.NewInt(1000000000) // 1 GWEI
 	nftAddressString := os.Getenv("NFT_CONTRACT_ADDRESS")

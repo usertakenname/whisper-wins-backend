@@ -320,7 +320,7 @@ func init() { // For toliman suave chain dial https://rpc.toliman.suave.flashbot
 }
 
 // with already existing contract
-func claimProcedure(bidder *framework.PrivKey) {
+func claimProcedure(bidder *framework.PrivKey) { //TODO delete
 	gasPrice, err := SuaveClient.SuggestGasPrice(context.Background())
 	checkError(err)
 	nftAddressString := os.Getenv("NFT_CONTRACT_ADDRESS")
@@ -367,7 +367,7 @@ func main() {
 		writeTextToFile("\nStarting the rollup auction with bidder amount: " + fmt.Sprintf("%d", num_bidder))
 		procedure(num_bidder)
 	} else {
-		claimProcedure(framework.NewPrivKeyFromHex("5973cd16fdfd72de60b76ca3800c3874dcfe09ce5007dd5944badbe32e7113b7"))
+		claimProcedure(framework.NewPrivKeyFromHex("1cfaf2a93ccbe1e72351e57a1a2b824161267c28e71915cd9f578dd34c25426a"))
 	}
 }
 
@@ -380,8 +380,8 @@ func procedure(num_bidder int) {
 	oracleAddress := deployOracle().Raw().Address()
 
 	fmt.Println("1. Deploy Sealed Auction contract on TOLIMAN SUAVE CHAIN")
-	auctionInSeconds := int64(num_bidder * 60)
-	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds + 60))
+	auctionInSeconds := int64(num_bidder*60 + 60)
+	auctionEndTime := big.NewInt(int64(time.Now().Unix() + auctionInSeconds))
 	refuteTime := big.NewInt(30)
 	minimalBiddingAmount := big.NewInt(1000000000) // 1 GWEI
 	nftAddressString := os.Getenv("NFT_CONTRACT_ADDRESS")

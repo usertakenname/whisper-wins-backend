@@ -1,0 +1,202 @@
+
+Starting the auction with bidder amount: 1
+Deploying the auction contract: 3797270
+Setup: 68899
+L1 Moving the NFT to NFT holding address: 70618
+Start auction: 55425
+Getting a bidding address: 284741
+End auction transfer tax on L1: 21000
+Ending auction on SUAVE: 455400
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 45699
+Claiming valuables on SUAVE: 177465
+
+Starting the auction with bidder amount: 2
+Deploying the auction contract: 3797270
+Setup: 68899
+L1 Moving the NFT to NFT holding address: 70618
+Start auction: 55425
+Getting a bidding address: 284729
+Getting a bidding address: 267641
+End auction transfer tax on L1: 21000
+Ending auction on SUAVE: 498227
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 45699
+Claiming valuables on SUAVE: 177465
+
+Starting the auction with bidder amount: 3
+Deploying the auction contract: 3797270
+Setup: 68899
+L1 Moving the NFT to NFT holding address: 70618
+Start auction: 55425
+Getting a bidding address: 284729
+Getting a bidding address: 267641
+Getting a bidding address: 268171
+End auction transfer tax on L1: 21000
+Ending auction on SUAVE: 542145
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 45699
+Claiming valuables on SUAVE: 177465
+
+Starting the auction with bidder amount: 4
+Deploying the auction contract: 3797258
+Setup: 68899
+L1 Moving the NFT to NFT holding address: 70618
+Start auction: 55425
+Getting a bidding address: 284741
+Getting a bidding address: 267641
+Getting a bidding address: 267641
+Getting a bidding address: 267641
+End auction transfer tax on L1: 21000
+Ending auction on SUAVE: 585000
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177453
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177453
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177453
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177453
+Claiming valuables on L1: 45699
+Claiming valuables on SUAVE: 177453
+
+Starting the auction with bidder amount: 5
+Deploying the auction contract: 3797270
+Setup: 68899
+L1 Moving the NFT to NFT holding address: 70618
+Start auction: 55425
+Getting a bidding address: 284741
+Getting a bidding address: 267641
+Getting a bidding address: 267641
+Getting a bidding address: 267641
+Getting a bidding address: 268171
+End auction transfer tax on L1: 21000
+Ending auction on SUAVE: 627335
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 45699
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 177465
+
+----------------------------------------------------
+
+Starting the rollup auction with bidder amount: 1
+Deploying the auction contract: 4053389
+Setup: 68899
+L1 Moving the NFT to NFT holding address: 70618
+Start auction: 55403
+Getting a bidding address: 284697
+Ending auction on SUAVE: 227680
+Registering new winner: 117205
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 233252
+Claiming valuables on L1: 45699
+Claiming valuables on SUAVE: 289400
+
+Starting the rollup auction with bidder amount: 2
+Deploying the auction contract: 4053389
+Setup: 68887
+L1 Moving the NFT to NFT holding address: 70618
+Start auction: 55403
+Getting a bidding address: 284685
+Getting a bidding address: 267585
+Ending auction on SUAVE: 271495
+Registering new winner: 117734
+Registering new winner: 22933
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 233252
+Claiming valuables on L1: 45699
+Claiming valuables on SUAVE: 289400
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 233252
+
+Starting the rollup auction with bidder amount: 3
+Deploying the auction contract: 4053389
+Setup: 68899
+L1 Moving the NFT to NFT holding address: 70618
+Start auction: 55403
+Getting a bidding address: 284697
+Getting a bidding address: 267597
+Getting a bidding address: 267597
+Ending auction on SUAVE: 313736
+Registering new winner: 117734
+Registering new winner: 166647
+Registering new winner: 65893
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 233252
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 233252
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 233252
+Claiming valuables on L1: 45699
+Claiming valuables on SUAVE: 289400
+
+Starting the rollup auction with bidder amount: 4
+Deploying the auction contract: 4053389
+Setup: 68899
+L1 Moving the NFT to NFT holding address: 70618
+Start auction: 55403
+Getting a bidding address: 284697
+Getting a bidding address: 267597
+Getting a bidding address: 267585
+Getting a bidding address: 267597
+Ending auction on SUAVE: 356563
+Registering new winner: 117205
+Registering new winner: 65905
+Registering new winner: 66434
+Registering new winner: 65905
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 222457
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 222457
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 222457
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 222457
+Claiming valuables on L1: 45699
+Claiming valuables on SUAVE: 289376
+
+Starting the rollup auction with bidder amount: 5
+Deploying the auction contract: 4053389
+Setup: 68899
+L1 Moving the NFT to NFT holding address: 70618
+Start auction: 55403
+Getting a bidding address: 284697
+Getting a bidding address: 267597
+Getting a bidding address: 267597
+Getting a bidding address: 267597
+Getting a bidding address: 268127
+Ending auction on SUAVE: 399361
+Registering new winner: 117205
+Registering new winner: 66434
+Registering new winner: 65905
+Registering new winner: 166647
+Registering new winner: 166647
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 222457
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 222457
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 222457
+Claiming valuables on L1: 45699
+Claiming valuables on SUAVE: 289376
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 222457
+Claiming valuables on L1: 21000
+Claiming valuables on SUAVE: 222457
