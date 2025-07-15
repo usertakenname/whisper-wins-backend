@@ -316,41 +316,18 @@ func init() { // DEPRECATED: for toliman suave chain dial https://rpc.toliman.su
 	writeToFile = true
 }
 
-// with already existing contract
-func claimProcedure(bidder *framework.PrivKey) { //TODO delete
-	gasPrice, err := SuaveClient.SuggestGasPrice(context.Background())
-	checkError(err)
-	nftAddressString := os.Getenv("NFT_CONTRACT_ADDRESS")
-	if nftAddressString == "" {
-		log.Fatal("ENTER NFT_CONTRACT_ADDRESS in .env file!")
-	}
-	tokenIDString := os.Getenv("NFT_TOKEN_ID")
-	if tokenIDString == "" {
-		log.Fatal("ENTER NFT_TOKEN_ID in .env file!")
-	}
-	tokenIDUint, err := strconv.ParseUint(tokenIDString, 10, 64)
-	checkError(err)
-	nftTokenID := new(big.Int).SetUint64(tokenIDUint)
-	nftContractAddress := common.HexToAddress(nftAddressString)
-	nftHoldingAddress := bidder.Address()
-	makeTransaction(L1DevAccount, big.NewInt(gasPrice.Int64()*80000*4), nftHoldingAddress)
-	fmt.Println("returning the NFT to main account")
-	moveNft(L1DevAccount.Address(), nftTokenID, nftContractAddress, bidder)
-
-	fmt.Println("returning the funds left on NFT holding address to main account")
-	sendAllBalance(bidder, L1DevAccount.Address())
-}
-
 func main() {
 	args := os.Args
-	if true {
-		num_bidder, err := strconv.Atoi(args[1])
+	var num_bidder int
+	if len(args) > 1 {
+		var err error
+		num_bidder, err = strconv.Atoi(args[1])
 		checkError(err)
-		writeTextToFile("\nStarting the auction with bidder amount: " + fmt.Sprintf("%d", num_bidder))
-		procedure(num_bidder)
 	} else {
-		claimProcedure(framework.NewPrivKeyFromHex("7527938904d97f373c9c60c4c1be3e900e4fd169523f34a6a5799383afe50f1c"))
+		num_bidder = 2
 	}
+	writeTextToFile("\nStarting the auction with bidder amount: " + fmt.Sprintf("%d", num_bidder))
+	procedure(num_bidder)
 }
 
 func procedure(num_bidder int) {
@@ -382,8 +359,6 @@ func procedure(num_bidder int) {
 	fmt.Println("2 Setup Auction")
 	setUpAuction(contract)
 	nftHoldingAddress := getFieldFromContract(contract, "nftHoldingAddress")[0].(common.Address)
-
-	getPrivKey(contract)
 
 	fmt.Println("3. Moving the NFT from auctioneer to holding address")
 	moveNft(nftHoldingAddress, nftTokenID, nftContractAddress, L1DevAccount)
@@ -577,21 +552,6 @@ func placeBid(privKey *framework.PrivKey, bidContract *framework.Contract) {
 	   	fmt.Println(privKey.Address(), " bid ", amount, " to ", toAddress) */
 	toAddress := common.HexToAddress(getBiddingAddress(bidContract))
 	sendAllBalance(privKey, toAddress)
-}
-
-// TODO This method is just for debugging purpose, the getPrivKey is not in the Production Contract
-func getPrivKey(contract *framework.Contract) string {
-	receipt, err := contract.SendConfidentialRequest("getPrivKey", nil, nil)
-	checkError(err)
-	for i := 0; i < len(receipt.Logs); i++ {
-		if receipt.Logs[i].Topics[0] == contract.Abi.Events["TestEvent"].ID {
-			event, err := contract.Abi.Events["TestEvent"].ParseLog(receipt.Logs[i])
-			checkError(err)
-			fmt.Println("Revealed Private key:", event["test"])
-			return event["test"].(string)
-		}
-	}
-	return ""
 }
 
 func sendAllBalance(privKey *framework.PrivKey, to common.Address) {

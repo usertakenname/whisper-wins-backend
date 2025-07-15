@@ -9,13 +9,13 @@ import "suave-std/suavelib/Suave.sol";
 
 // Minimal Oracle mock
 contract OracleMock {
-    function getNFTOwnedBy(address, uint256) external returns (address) {
+    function getNFTOwnedBy(address, uint256) external pure returns (address) {
         return address(0xD);
     }
     function endAuction(
         address[] memory,
         uint256
-    ) external returns (uint256, address) {
+    ) external pure returns (uint256, address) {
         return (1000, address(0x9E3b6d786Dc411aA33B9bD81f15436C9eCbB4cb0));
     }
     function transferETH(address, bytes32) external {}
@@ -288,7 +288,8 @@ contract SealedAuctionTest is Test {
             nftContract,
             tokenId,
             auctionEndTime,
-            minimalBid
+            minimalBid,
+            address(oracle)
         );
 
         vm.store(
@@ -299,7 +300,7 @@ contract SealedAuctionTest is Test {
         logFields();
     }
 
-    function logFields() private {
+    function logFields() view private {
         console.log(
             string.concat(
                 "Auctioner: ",
@@ -362,7 +363,7 @@ contract SealedAuctionTest is Test {
         return _dataRecord;
     }
 
-    function createSuaveDataRecord() private returns (Suave.DataRecord memory) {
+    function createSuaveDataRecord() private pure returns (Suave.DataRecord memory) {
         bytes16 recordId = bytes16(uint128(1));
         return
             Suave.DataRecord({

@@ -262,18 +262,6 @@ contract SealedAuctionValidator is Suapp {
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
-    // TODO: delete
-    // gets privateKey of NFT Holding address
-    event TestEvent(string test);
-    function getPrivKey() public returns (bytes memory) {
-        bytes memory privateL1Key = Suave.confidentialRetrieve(
-            privateKeysL1[address(this)],
-            PRIVATE_KEYS
-        );
-        emit TestEvent(string(privateL1Key));
-        return abi.encodeWithSelector(this.onchainCallback.selector);
-    }
-
     /**
      * @notice Registers the nftHoldingAddress onchain.
      * @dev only called by setUpAuction()
@@ -314,21 +302,6 @@ contract SealedAuctionValidator is Suapp {
             NFTowner == nftHoldingAddress,
             "The NFT was not transferred yet"
         );
-        return abi.encodeWithSelector(this.startAuctionOnchain.selector);
-    }
-
-    // Todo delete
-    /**
-     * @notice This is a test function for local debugging only. It does not require the NFT to be sent.
-     */
-    function startAuctionTest()
-        public
-        onlyAuctioneer
-        auctionNotStarted
-        confidential
-        validAuctionEndTime
-        returns (bytes memory)
-    {
         return abi.encodeWithSelector(this.startAuctionOnchain.selector);
     }
 
@@ -562,7 +535,7 @@ contract SealedAuctionValidator is Suapp {
     function refuteWinner(
         address potentialWinnerL1
     ) public confidential returns (bytes memory) {
-        // TODO add afterAuctiontime & inRefuteTime
+        // add modifier afterAuctiontime & inRefuteTime
         for (uint256 i = 0; i < bidderAmount; i++) {
             bytes memory privateL1Key = Suave.confidentialRetrieve(
                 privateKeysL1[bidderAddresses[i]],
@@ -640,7 +613,7 @@ contract SealedAuctionValidator is Suapp {
     function claim(
         string calldata returnAddress
     ) external confidential winnerRegistered returns (bytes memory) {
-        // TODO add afterRefuteTime
+        // add modifier afterRefuteTime
         address returnAddressL1 = toAddress(returnAddress);
         // when no one bid => auctioneer gets the NFT
         if (msg.sender == auctioneerSUAVE) {

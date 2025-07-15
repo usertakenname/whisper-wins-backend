@@ -233,18 +233,6 @@ contract SealedAuction is Suapp {
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }
 
-    // TODO: delete
-    // gets privateKey of NFT Holding address
-    event TestEvent(string test);
-    function getPrivKey() public returns (bytes memory) {
-        bytes memory privateL1Key = Suave.confidentialRetrieve(
-            privateKeysL1[address(this)],
-            PRIVATE_KEYS
-        );
-        emit TestEvent(string(privateL1Key));
-        return abi.encodeWithSelector(this.onchainCallback.selector);
-    }
-
     /**
      * @notice Registers the nftHoldingAddress onchain.
      * @dev only called by setUpAuction()

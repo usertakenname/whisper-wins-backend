@@ -6,8 +6,10 @@ Whisper-Wins is an application designed to facilitate sealed auctions on a block
 ## Repository Structure
 In essence, this repository consists of several smart contracts:
 
-1. [**Oracle.sol**](src/utils/Oracle.sol) contains all functionality for fetching data from RPCs, enabling our SUAVE smart contracts to access L1-chain data and issue L1 transactions.
-2. [**SealedAuction.sol**](src/SealedAuction.sol) represents a sealed auction. It regulates ownership of the NFT, bidders and bidding as well as state changes and resolution of the auction. It represents the core functionality of our application.
+1. [**SealedAuction.sol**](src/SealedAuction.sol) represents a sealed auction. It regulates ownership of the NFT, bidders and bidding as well as state changes and resolution of the auction. It represents the core functionality of our application.
+
+2. [**Oracle.sol**](src/Oracle.sol) contains all functionality for fetching data from RPCs, enabling our SUAVE smart contracts to access L1-chain data and issue L1 transactions.
+
 3. [**SealedAuctionValidator.sol**](src/ValidatorVersion/SealedAuctionValidator.sol) and [**OracleValidator.sol**](src/ValidatorVersion/OracleValidator.sol) together form an enhanced version of a sealed auction, specifically designed to address its scalability challenges. See this [chapter](#validator-version) for a detailed description.
 
  The [`main.go`](main.go) file serves to test the functionality of our contracts (see [this section](#run-maingo) for instructions).
@@ -16,7 +18,7 @@ In essence, this repository consists of several smart contracts:
 In order to better grasp the workflow of our application we have designed workflow diagrams (see files in [visualization/](visualization/)). For further details please refer to the source code.
 
 ### Validator version
-The `SealedAuctionValidator` shares the same workflow as the `SealedAuction` up until ending the auction. Instead of checking the balance of every bidder, the contract only emits all L1 addresses to be checked by validators. Hence we enter the `refute period` where everyone can suggest a winner for a specified timeframe. This suggested winner's bid will then be compared to the current suggested winner's bid. If the bid is higher, then they become the new winner of the auction. Currently, everyone can be a validator as there is no stake that is needed to suggest a winner. After a the refute period, the winner is set and can not be overruled anymore. The claiming process is again equal to the basic auction workflow.
+The `SealedAuctionValidator` shares the same workflow as the `SealedAuction` up until ending the auction. Instead of checking the balance of every bidder, the contract only emits all L1 addresses to be checked by validators. Hence we enter the `refute period` where everyone can suggest a winner for a specified timeframe. This suggested winner's bid will then be compared to the current suggested winner's bid. If the bid is higher, then they become the new winner of the auction. Currently, everyone can be a validator as there is no stake that is needed to suggest a winner. After a the refute period, the winner is set and can not be overruled anymore. When claiming the valuables (NFT or ETH) the auction does not directly issue the transaction. The transaction to transfer the NFT for example is signed and then emitted, for everyone to put into the mempool. For future versions these transactions might set the available gas used to 0, such that these transactions need to be included in bundles.
 
 ## Limitations of the Implementation
 1. **Visibility of Onchain Callbacks:** To ensure fairness, the on-chain callbacks for off-chain functions (e.g., setUpAuction() and setUpAuctionOnchain()) should ideally only be callable by their corresponding off-chain counterparts. However, adapting the visibility to "internal" or "private" is currently not supported by SUAVE. As a result, we have to assume that these callbacks are only invoked by the respective off-chain function(s).
