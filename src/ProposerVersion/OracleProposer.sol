@@ -9,7 +9,7 @@ import "solady/src/utils/JSONParserLib.sol";
 import "suave-std/crypto/Secp256k1.sol";
 import "suave-std/Transactions.sol";
 
-contract OracleValidator is Suapp {
+contract OracleProposer is Suapp {
     address public owner;
     uint256 public chainID;
     string PRIVATE_KEYS = "KEY";

@@ -1,7 +1,4 @@
-# <h1 align="center"> Whisper-Wins Backend </h1>
-
-## What is Whisper-Wins?
-Whisper-Wins is an application designed to facilitate sealed auctions on a blockchain. By adopting the sealed auction model, it addresses the common drawbacks of current blockchain-based auctions, such as lack of privacy, MEV attacks, and last-minute bidding. This enhancement elevates the auction experience to a new level.
+# <h1 align="center"> Sealed-Bid Auctions via TEE-Backed Confidential Compute Blockchains </h1>
 
 ## Repository Structure
 In essence, this repository consists of several smart contracts:
@@ -10,24 +7,12 @@ In essence, this repository consists of several smart contracts:
 
 2. [**Oracle.sol**](src/Oracle.sol) contains all functionality for fetching data from RPCs, enabling our SUAVE smart contracts to access L1-chain data and issue L1 transactions.
 
-3. [**SealedAuctionValidator.sol**](src/ValidatorVersion/SealedAuctionValidator.sol) and [**OracleValidator.sol**](src/ValidatorVersion/OracleValidator.sol) together form an enhanced version of a sealed auction, specifically designed to address its scalability challenges. See this [chapter](#validator-version) for a detailed description.
+3. [**SealedAuctionProposer.sol**](src/ProposerVersion/SealedAuctionProposer.sol) and [**OracleProposer.sol**](src/ProposerVersion/OracleProposer.sol) together form an enhanced version of a sealed auction, specifically designed to address its scalability challenges. See this [chapter](#Proposer-version) for a detailed description.
 
- The [`main.go`](main.go) file serves to test the functionality of our contracts (see [this section](#run-maingo) for instructions).
+ The [`main.go`](main.go) file serves to test the functionality of our contracts (see [this section](#run-maingo) for instructions). Running this file will completely simulate the auction behavior by deploying an auction contract on SUAVE. Then the NFT will be moved on Sepolia, and bids will be placed. After the auction is over, all of the bids & the NFT will be returned to the auctioneer.
 
-## Workflow
-In order to better grasp the workflow of our application we have designed workflow diagrams (see files in [visualization/](visualization/)). For further details please refer to the source code.
-
-### Validator version
-The `SealedAuctionValidator` shares the same workflow as the `SealedAuction` up until ending the auction. Instead of checking the balance of every bidder, the contract only emits all L1 addresses to be checked by validators. Hence we enter the `refute period` where everyone can suggest a winner for a specified timeframe. This suggested winner's bid will then be compared to the current suggested winner's bid. If the bid is higher, then they become the new winner of the auction. Currently, everyone can be a validator as there is no stake that is needed to suggest a winner. After a the refute period, the winner is set and can not be overruled anymore. When claiming the valuables (NFT or ETH) the auction does not directly issue the transaction. The transaction to transfer the NFT for example is signed and then emitted, for everyone to put into the mempool. For future versions these transactions might set the available gas used to 0, such that these transactions need to be included in bundles.
-
-## Limitations of the Implementation
-1. **Visibility of Onchain Callbacks:** To ensure fairness, the on-chain callbacks for off-chain functions (e.g., setUpAuction() and setUpAuctionOnchain()) should ideally only be callable by their corresponding off-chain counterparts. However, adapting the visibility to "internal" or "private" is currently not supported by SUAVE. As a result, we have to assume that these callbacks are only invoked by the respective off-chain function(s).
-
-2. **Time constraint:** For the purpose of benchmarking, the time constraints were removed from the implementation. Thus the implementation currently does not validate if the auction time has actually ended. The modifiers (e.g. *afterAuctionTime()*, *inRefuteTime()*) can still be found in the source code and applied if necessary.
-
-3. **Tie-Breaks in Winner Selection:** For simplicity, we make use of "first-come, first-serve" as a tie-breking rule. Depending on the actual resolution strategie, the outcome could differ. In general, the bidder who requested their bidding address first or who proposed themself first as a winner is chosen as a winner in case of a tie.
-
-4. **Reliant on User-Generated Secret Keys:** To enable encrypted communication back to the caller, we utilize symmetric encryption (AES-256). The key material is provided by the user through the confidential inputs of a confidential request on SUAVE. While this method works, relying on user-generated keys is generally not ideal, as there's no guarantee that they are fresh, strong, or truly random. Ideally, we would prefer to communicate securely using asymmetric encryption, where the user's public address (from which the transaction was issued) serves as the basis for the encryption. Unfortunately, there is no precompile available for this purpose at the moment, which is why we have opted to use user-provided symmetric keys for now.
+### Proposer version
+The `SealedAuctionProposer` shares the same workflow as the `SealedAuction` up until ending the auction. Instead of checking the balance of every bidder, the contract only emits all L1 addresses to be checked by proposers. Hence we enter the `refute period` where everyone can suggest a winner for a specified timeframe. This suggested winner's bid will then be compared to the current suggested winner's bid. If the bid is higher, then they become the new winner of the auction. Currently, everyone can be a proposer as there is no stake that is needed to suggest a winner. After a the refute period, the winner is set and can not be overruled anymore. When claiming the valuables (NFT or ETH) the auction does not directly issue the transaction. The transaction to transfer the NFT for example is signed and then emitted, for everyone to put into the mempool. For future versions these transactions might set the available gas used to 0, such that these transactions need to be included in bundles.
 
 5. **Use of different addresses:** The application ensures privacy only if the address used for communication on the SUAVE chain differs from the one used to place a bid on the L1 chain. If the same address is used for both actions, an adversary could monitor the l1-activity of an address interacting with an auction contract on SUAVE and potentially deduce the associated bidding address and bid amount. Additionally, we strongly recommend against reusing the same SUAVE-L1 address pair for several auctions. Depending on the bidder amount, an adversary could be able to link contract interactions on SUAVE to funding of the bidding addresses on L1 once the bidding addresses for an auction are disclosed.
 
@@ -77,13 +62,13 @@ suave-geth spell conf-request [--confidential-input <input-data>] <contract-addr
 
 ## Run main.go
 1. Check if Go is installed ```go version```
-2. Initialize go.mod ```go mod init suave/whisperwins ```
+2. Initialize go.mod ```go mod init suave/sealedauction```
 3. add ```replace github.com/ethereum/go-ethereum => github.com/flashbots/suave-geth v0.2.0``` to your go.mod file
 4. ```go mod tidy```
 5. ```forge build```
 6. Make sure that all of your fields are set in the [.env](.env) file and that the accounts provided have enough balance.
 7. Provide the number of bidders as a parameter and run the go script ```go run main.go 2```. 
-In order to run the validator version run ```go run src/ValidatorVersion/main.go 2```.
+In order to run the proposer version run ```go run src/ProposerVersion/main.go 2```.
 
 ## Measurement of gas costs
 Gas cost analysis was performed by running the [measure.go](/measurements/measure.go) file. It runs the Go script once for up to 5 bidders and captures the gas costs. The amount of iterations and the number of bidders for an auction can be adapted in the Go file. Afterwards run it with `go run measurements/measure.go`. An example execution can already be found in in [measurements.txt](./measurements.txt), running the script again will append the results to this file.

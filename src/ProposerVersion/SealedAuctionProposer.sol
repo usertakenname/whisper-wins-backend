@@ -11,7 +11,7 @@ import "suave-std/crypto/Secp256k1.sol";
 import "solady/src/utils/JSONParserLib.sol";
 import "solady/src/utils/LibString.sol";
 
-interface OracleValidator {
+interface OracleProposer {
     function getNFTOwnedBy(
         address _nftContract,
         uint256 _tokenId
@@ -33,7 +33,7 @@ interface OracleValidator {
     ) external;
 }
 
-contract SealedAuctionValidator is Suapp {
+contract SealedAuctionProposer is Suapp {
     address public auctioneerSUAVE;
     address public auctionWinnerL1 = address(0);
     address public auctionWinnerSuave = address(0);
@@ -296,7 +296,7 @@ contract SealedAuctionValidator is Suapp {
         validAuctionEndTime
         returns (bytes memory)
     {
-        OracleValidator oracleRPC = OracleValidator(oracle);
+        OracleProposer oracleRPC = OracleProposer(oracle);
         address NFTowner = oracleRPC.getNFTOwnedBy(nftContract, tokenId);
         require(
             NFTowner == nftHoldingAddress,
@@ -545,7 +545,7 @@ contract SealedAuctionValidator is Suapp {
                 string(privateL1Key)
             );
             if (publicL1Address == potentialWinnerL1) {
-                OracleValidator oracleRPC = OracleValidator(oracle);
+                OracleProposer oracleRPC = OracleProposer(oracle);
                 (uint256 bidAmount, address bidder) = oracleRPC.checkIfWinner(
                     publicL1Address,
                     auctionEndTime
@@ -640,7 +640,7 @@ contract SealedAuctionValidator is Suapp {
     function transferWinningBid(
         address returnAddressL1
     ) internal onlyAuctioneer {
-        OracleValidator oracleRPC = OracleValidator(oracle);
+        OracleProposer oracleRPC = OracleProposer(oracle);
         oracleRPC.transferETH(
             returnAddressL1,
             privateKeysL1[auctionWinnerSuave]
@@ -653,7 +653,7 @@ contract SealedAuctionValidator is Suapp {
      * @param returnAddressL1 L1 address where the NFT is to be sent to.
      */
     function transferNFT(address returnAddressL1) internal isWinnerSuave {
-        OracleValidator oracleRPC = OracleValidator(oracle);
+        OracleProposer oracleRPC = OracleProposer(oracle);
         oracleRPC.transferNFT(
             nftHoldingAddress,
             returnAddressL1,
@@ -669,7 +669,7 @@ contract SealedAuctionValidator is Suapp {
      * @param returnAddressL1 L1 address where the bid is to be sent back to.
      */
     function refundBid(address returnAddressL1) internal notWinnerSuave {
-        OracleValidator oracleRPC = OracleValidator(oracle);
+        OracleProposer oracleRPC = OracleProposer(oracle);
         oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
     }
 
@@ -691,7 +691,7 @@ contract SealedAuctionValidator is Suapp {
         auctionNotStarted
         returns (bytes memory)
     {
-        OracleValidator oracleRPC = OracleValidator(oracle);
+        OracleProposer oracleRPC = OracleProposer(oracle);
         oracleRPC.transferNFT(
             nftHoldingAddress,
             returnAddressL1,
@@ -712,7 +712,7 @@ contract SealedAuctionValidator is Suapp {
     function backOutBid(
         address returnAddressL1
     ) external confidential senderHasBid inBackOutTime returns (bytes memory) {
-        OracleValidator oracleRPC = OracleValidator(oracle);
+        OracleProposer oracleRPC = OracleProposer(oracle);
         oracleRPC.transferETH(returnAddressL1, privateKeysL1[msg.sender]);
         return abi.encodeWithSelector(this.onchainCallback.selector);
     }

@@ -15,7 +15,7 @@ import (
 	"os"
 	"time"
 
-	"suave/whisperwins/framework"
+	"suave/sealedauction/framework"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -138,7 +138,7 @@ var L1chainID *big.Int
 var L1DevAccount *framework.PrivKey
 var SuaveDevAccount *framework.PrivKey
 var writeToFile bool
-var path = "SealedAuctionValidator.sol/SealedAuctionValidator.json"
+var path = "SealedAuctionProposer.sol/SealedAuctionProposer.json"
 var fr *framework.Framework
 var oracle *framework.Contract
 
@@ -265,7 +265,7 @@ func claim(contract *framework.Contract) {
 
 func deployOracle() *framework.Contract {
 	chainID := big.NewInt(SEPOLIA_CHAIN_ID)
-	oracle = deployContractWithConstructor("OracleValidator.sol/OracleValidator.json", SuaveDevAccount, chainID)
+	oracle = deployContractWithConstructor("OracleProposer.sol/OracleProposer.json", SuaveDevAccount, chainID)
 	api_key := os.Getenv("ALCHEMY_API_KEY")
 	if api_key == "" {
 		log.Fatal("ENTER ALCHEMY_API_KEY in .env file!")

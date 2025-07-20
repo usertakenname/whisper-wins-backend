@@ -15,7 +15,7 @@ import (
 	"os"
 	"time"
 
-	"suave/whisperwins/framework"
+	"suave/sealedauction/framework"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
